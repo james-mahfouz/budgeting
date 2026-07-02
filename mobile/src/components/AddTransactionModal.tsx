@@ -18,8 +18,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
 import { useBudgetStore } from "../store/useBudgetStore";
 import { colors, radii, spacing, text } from "../theme";
-import type { Category, TransactionType } from "../types";
+import type { Category, Currency, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
+import { LBP_PER_USD, amountInputToNumber, amountToUsd, money } from "../utils/money";
 
 type AddTransactionModalProps = {
   visible: boolean;
@@ -35,6 +36,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   const queryClient = useQueryClient();
   const openCategoryModal = useBudgetStore((state) => state.openCategoryModal);
   const [type, setType] = useState<TransactionType>("expense");
+  const [currency, setCurrency] = useState<Currency>("USD");
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
   const [note, setNote] = useState("");
@@ -47,6 +49,8 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   });
 
   const categories = categoriesQuery.data?.categories ?? [];
+  const parsedAmount = amountInputToNumber(amount);
+  const usdEstimate = amountToUsd(Number.isFinite(parsedAmount) ? parsedAmount : 0, currency, LBP_PER_USD);
   const filteredCategories = useMemo(
     () => categories.filter((category) => category.kind === type),
     [categories, type]
@@ -67,6 +71,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
 
   const resetForm = () => {
     setType("expense");
+    setCurrency("USD");
     setAmount("");
     setMerchant("");
     setNote("");
@@ -98,7 +103,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   };
 
   const submit = () => {
-    const parsedAmount = Number(amount);
+    const parsedAmount = amountInputToNumber(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       Alert.alert("Amount needed", "Enter a positive amount.");
       return;
@@ -117,6 +122,8 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
     mutation.mutate({
       type,
       amount: parsedAmount,
+      currency,
+      exchangeRate: currency === "LBP" ? LBP_PER_USD : undefined,
       categoryId,
       merchant: merchant.trim(),
       note: note.trim() || undefined,
@@ -158,14 +165,31 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
             </View>
 
             <Text style={styles.label}>Amount</Text>
+            <View style={styles.currencySegment}>
+              {(["USD", "LBP"] as Currency[]).map((value) => {
+                const selected = currency === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => setCurrency(value)}
+                    style={[styles.currencyButton, selected && styles.currencyButtonActive]}
+                  >
+                    <Text style={[styles.currencyText, selected && styles.currencyTextActive]}>{value}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <TextInput
               value={amount}
               onChangeText={setAmount}
-              placeholder="0.00"
+              placeholder={currency === "USD" ? "0.00" : "0"}
               keyboardType="decimal-pad"
               style={styles.amountInput}
               placeholderTextColor={colors.muted}
             />
+            {currency === "LBP" && parsedAmount > 0 ? (
+              <Text style={styles.conversionText}>{money(usdEstimate)} at 89,500 LBP/USD</Text>
+            ) : null}
 
             <Text style={styles.label}>Merchant or source</Text>
             <TextInput
@@ -331,6 +355,32 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: spacing.md
   },
+  currencySegment: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.sm
+  },
+  currencyButton: {
+    minWidth: 76,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  currencyButtonActive: {
+    borderColor: colors.primary,
+    backgroundColor: "#E6FFFA"
+  },
+  currencyText: {
+    color: colors.muted,
+    fontWeight: "900"
+  },
+  currencyTextActive: {
+    color: colors.primaryDark
+  },
   amountInput: {
     minHeight: 76,
     borderRadius: radii.md,
@@ -341,6 +391,11 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: colors.ink,
     backgroundColor: colors.background
+  },
+  conversionText: {
+    ...text.muted,
+    marginTop: spacing.sm,
+    fontWeight: "800"
   },
   input: {
     minHeight: 52,

@@ -15,6 +15,7 @@ services:
       DATA_FILE: "${DATA_FILE:-/app/backend/data/budgeting.json}"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
       CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+      LBP_PER_USD: "${LBP_PER_USD:-89500}"
     ports:
       - "${HOST_PORT:-4000}:${PORT:-4000}"
     volumes:

@@ -4,7 +4,9 @@ export const monthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must use YYY
 
 export const createTransactionSchema = z.object({
   type: z.enum(["income", "expense"]),
-  amount: z.coerce.number().positive().max(1_000_000),
+  amount: z.coerce.number().positive().max(100_000_000_000),
+  currency: z.enum(["USD", "LBP"]).default("USD"),
+  exchangeRate: z.coerce.number().positive().max(1_000_000).optional(),
   categoryId: z.string().min(1),
   merchant: z.string().trim().min(1).max(80),
   note: z.string().trim().max(240).optional(),
@@ -20,7 +22,9 @@ export const createCategorySchema = z.object({
 
 export const createRecurringPaymentSchema = z.object({
   type: z.enum(["income", "expense"]),
-  amount: z.coerce.number().positive().max(1_000_000),
+  amount: z.coerce.number().positive().max(100_000_000_000),
+  currency: z.enum(["USD", "LBP"]).default("USD"),
+  exchangeRate: z.coerce.number().positive().max(1_000_000).optional(),
   categoryId: z.string().min(1),
   merchant: z.string().trim().min(1).max(80),
   note: z.string().trim().max(240).optional(),

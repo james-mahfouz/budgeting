@@ -21,12 +21,11 @@ type RequestOptions = {
 };
 
 const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
+  const hasBody = options.body !== undefined;
   const response = await fetch(`${API_URL}${path}`, {
     method: options.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined
+    headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+    body: hasBody ? JSON.stringify(options.body) : undefined
   });
 
   if (!response.ok) {

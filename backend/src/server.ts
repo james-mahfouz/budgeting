@@ -17,6 +17,7 @@ import {
   upsertBudgetSchema
 } from "./validation.js";
 import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
+import { normalizeMoney } from "./services/currency.js";
 import { currentMonth } from "./services/date.js";
 import { addInterval, hasDueRecurringPayments, processDueRecurringPayments } from "./services/recurring.js";
 import type { Budget, Category, RecurringPayment, Transaction } from "./types.js";
@@ -151,10 +152,14 @@ export const buildServer = async (store: JsonStore) => {
     }
 
     const now = new Date().toISOString();
+    const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
     const transaction: Transaction = {
       id: randomUUID(),
       type: input.type,
-      amount: input.amount,
+      amount: money.amount,
+      currency: money.currency,
+      originalAmount: money.originalAmount,
+      exchangeRate: money.exchangeRate,
       categoryId: input.categoryId,
       merchant: input.merchant,
       note: input.note,
@@ -167,7 +172,12 @@ export const buildServer = async (store: JsonStore) => {
       data.events.push({
         id: randomUUID(),
         name: "transaction_created",
-        payload: { transactionId: transaction.id, type: transaction.type, amount: transaction.amount },
+        payload: {
+          transactionId: transaction.id,
+          type: transaction.type,
+          amount: transaction.amount,
+          currency: transaction.currency
+        },
         createdAt: now
       });
     });
@@ -199,10 +209,14 @@ export const buildServer = async (store: JsonStore) => {
     const now = new Date();
     const nowIso = now.toISOString();
     const startAt = input.startAt ? new Date(input.startAt) : now;
+    const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
     const recurringPayment: RecurringPayment = {
       id: randomUUID(),
       type: input.type,
-      amount: input.amount,
+      amount: money.amount,
+      currency: money.currency,
+      originalAmount: money.originalAmount,
+      exchangeRate: money.exchangeRate,
       categoryId: input.categoryId,
       merchant: input.merchant,
       note: input.note,
@@ -224,7 +238,10 @@ export const buildServer = async (store: JsonStore) => {
         data.transactions.push({
           id: randomUUID(),
           type: input.type,
-          amount: input.amount,
+          amount: money.amount,
+          currency: money.currency,
+          originalAmount: money.originalAmount,
+          exchangeRate: money.exchangeRate,
           categoryId: input.categoryId,
           merchant: input.merchant,
           note: input.note,

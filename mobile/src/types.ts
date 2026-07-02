@@ -1,5 +1,6 @@
 export type TransactionType = "income" | "expense";
 export type RecurringIntervalUnit = "day" | "week" | "month";
+export type Currency = "USD" | "LBP";
 
 export type Category = {
   id: string;
@@ -13,6 +14,9 @@ export type Transaction = {
   id: string;
   type: TransactionType;
   amount: number;
+  currency?: Currency;
+  originalAmount?: number;
+  exchangeRate?: number;
   categoryId: string;
   merchant: string;
   note?: string;
@@ -35,6 +39,9 @@ export type RecurringPayment = {
   id: string;
   type: TransactionType;
   amount: number;
+  currency?: Currency;
+  originalAmount?: number;
+  exchangeRate?: number;
   categoryId: string;
   merchant: string;
   note?: string;
@@ -78,6 +85,8 @@ export type CashFlowPoint = {
 export type CreateTransactionInput = {
   type: TransactionType;
   amount: number;
+  currency?: Currency;
+  exchangeRate?: number;
   categoryId: string;
   merchant: string;
   note?: string;
@@ -94,6 +103,8 @@ export type CreateCategoryInput = {
 export type CreateRecurringPaymentInput = {
   type: TransactionType;
   amount: number;
+  currency?: Currency;
+  exchangeRate?: number;
   categoryId: string;
   merchant: string;
   note?: string;

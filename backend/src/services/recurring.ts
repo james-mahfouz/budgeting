@@ -23,6 +23,9 @@ const createTransactionFromRule = (rule: RecurringPayment, occurredAt: string): 
   id: randomUUID(),
   type: rule.type,
   amount: rule.amount,
+  currency: rule.currency,
+  originalAmount: rule.originalAmount,
+  exchangeRate: rule.exchangeRate,
   categoryId: rule.categoryId,
   merchant: rule.merchant,
   note: rule.note,
@@ -71,4 +74,3 @@ export const processDueRecurringPayments = (data: DbData, now = new Date()) => {
 
   return created;
 };
-
