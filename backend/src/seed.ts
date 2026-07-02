@@ -1,110 +1,94 @@
 import { config } from "./config.js";
 import { JsonStore } from "./db.js";
-import { defaultCategories } from "./defaults.js";
-import type { Budget, RecurringPayment, Transaction } from "./types.js";
+import { categoriesForUser } from "./defaults.js";
+import { hashPassword } from "./services/auth.js";
+import type { RecurringPayment, Transaction, User } from "./types.js";
 
 const month = new Date().toISOString().slice(0, 7);
+const userId = "demo-user";
 const isoForDay = (day: number) => `${month}-${String(day).padStart(2, "0")}T10:00:00.000Z`;
 const id = (prefix: string, index: number) => `${prefix}-${month}-${index}`;
+const categoryId = (id: string) => `${id}-${userId.slice(0, 8)}`;
+
+const user: User = {
+  id: userId,
+  name: "Demo User",
+  username: "demo",
+  passwordHash: hashPassword("password123"),
+  createdAt: isoForDay(1),
+  updatedAt: isoForDay(1)
+};
 
 const transactions: Transaction[] = [
   {
     id: id("txn", 1),
+    userId,
     type: "income",
     amount: 4200,
-    categoryId: "salary",
+    categoryId: categoryId("salary"),
     merchant: "Paycheck",
     occurredAt: isoForDay(1),
     createdAt: isoForDay(1)
   },
   {
     id: id("txn", 2),
+    userId,
     type: "expense",
     amount: 1200,
-    categoryId: "rent",
+    categoryId: categoryId("rent"),
     merchant: "Apartment rent",
     occurredAt: isoForDay(2),
     createdAt: isoForDay(2)
   },
   {
     id: id("txn", 3),
+    userId,
     type: "expense",
     amount: 86.45,
-    categoryId: "groceries",
+    categoryId: categoryId("groceries"),
     merchant: "Fresh Market",
     occurredAt: isoForDay(4),
     createdAt: isoForDay(4)
   },
   {
     id: id("txn", 4),
+    userId,
     type: "expense",
     amount: 32.2,
-    categoryId: "dining",
+    categoryId: categoryId("dining"),
     merchant: "Lunch",
     occurredAt: isoForDay(6),
     createdAt: isoForDay(6)
   },
   {
     id: id("txn", 5),
+    userId,
     type: "expense",
     amount: 44.9,
-    categoryId: "transport",
+    categoryId: categoryId("transport"),
     merchant: "Fuel",
     occurredAt: isoForDay(8),
     createdAt: isoForDay(8)
   },
   {
     id: id("txn", 6),
+    userId,
     type: "income",
     amount: 350,
-    categoryId: "side-hustle",
+    categoryId: categoryId("side-hustle"),
     merchant: "Freelance project",
     occurredAt: isoForDay(10),
     createdAt: isoForDay(10)
   }
 ];
 
-const budgets: Budget[] = [
-  {
-    id: id("budget", 1),
-    categoryId: "groceries",
-    month,
-    limit: 520,
-    createdAt: isoForDay(1),
-    updatedAt: isoForDay(1)
-  },
-  {
-    id: id("budget", 2),
-    categoryId: "dining",
-    month,
-    limit: 300,
-    createdAt: isoForDay(1),
-    updatedAt: isoForDay(1)
-  },
-  {
-    id: id("budget", 3),
-    categoryId: "transport",
-    month,
-    limit: 260,
-    createdAt: isoForDay(1),
-    updatedAt: isoForDay(1)
-  },
-  {
-    id: id("budget", 4),
-    categoryId: "shopping",
-    month,
-    limit: 250,
-    createdAt: isoForDay(1),
-    updatedAt: isoForDay(1)
-  }
-];
-
 const recurringPayments: RecurringPayment[] = [
   {
     id: id("recurring", 1),
+    userId,
     type: "expense",
     amount: 1200,
-    categoryId: "rent",
+    categoryId: categoryId("rent"),
     merchant: "Apartment rent",
     intervalUnit: "month",
     intervalEvery: 1,
@@ -120,13 +104,15 @@ const run = async () => {
   const store = new JsonStore(config.dataFile);
   await store.init();
   await store.update((data) => {
-    data.categories = defaultCategories;
+    data.users = [user];
+    data.sessions = [];
+    data.categories = categoriesForUser(userId);
     data.transactions = transactions;
-    data.budgets = budgets;
     data.recurringPayments = recurringPayments;
     data.events = [
       {
         id: id("event", 1),
+        userId,
         name: "seed_loaded",
         payload: { month },
         createdAt: new Date().toISOString()
@@ -135,7 +121,7 @@ const run = async () => {
   });
 
   console.log(
-    `Seeded ${transactions.length} transactions, ${budgets.length} budgets, and ${recurringPayments.length} recurring payments for ${month}`
+    `Seeded ${transactions.length} transactions and ${recurringPayments.length} recurring payments for ${month}`
   );
 };
 

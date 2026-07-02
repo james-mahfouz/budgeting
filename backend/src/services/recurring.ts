@@ -67,6 +67,7 @@ export const nextScheduledRun = (
 
 const createTransactionFromRule = (rule: RecurringPayment, occurredAt: string): Transaction => ({
   id: randomUUID(),
+  userId: rule.userId,
   type: rule.type,
   amount: rule.amount,
   currency: rule.currency,
@@ -112,6 +113,7 @@ export const processDueRecurringPayments = (data: DbData, now = new Date()) => {
   if (created > 0) {
     data.events.push({
       id: randomUUID(),
+      userId: undefined,
       name: "recurring_payments_processed",
       payload: { created },
       createdAt: nowIso

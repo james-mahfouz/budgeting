@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnalyticsScreen } from "../screens/AnalyticsScreen";
-import { BudgetsScreen } from "../screens/BudgetsScreen";
 import { DashboardScreen } from "../screens/DashboardScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { TransactionsScreen } from "../screens/TransactionsScreen";
@@ -11,7 +10,6 @@ import { colors } from "../theme";
 export type RootTabParamList = {
   Dashboard: undefined;
   Transactions: undefined;
-  Budgets: undefined;
   Analytics: undefined;
   Settings: undefined;
 };
@@ -21,7 +19,6 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 const icons: Record<keyof RootTabParamList, keyof typeof Ionicons.glyphMap> = {
   Dashboard: "home",
   Transactions: "receipt",
-  Budgets: "speedometer",
   Analytics: "bar-chart",
   Settings: "settings"
 };
@@ -51,7 +48,6 @@ export const BottomTabs = () => {
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Home" }} />
       <Tab.Screen name="Transactions" component={TransactionsScreen} />
-      <Tab.Screen name="Budgets" component={BudgetsScreen} />
       <Tab.Screen name="Analytics" component={AnalyticsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>

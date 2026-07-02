@@ -2,8 +2,20 @@ export type TransactionType = "income" | "expense";
 export type RecurringIntervalUnit = "day" | "week" | "month";
 export type Currency = "USD" | "LBP";
 
+export type User = {
+  id: string;
+  name: string;
+  username: string;
+};
+
+export type AuthResponse = {
+  token: string;
+  user: User;
+};
+
 export type Category = {
   id: string;
+  userId: string;
   name: string;
   kind: TransactionType;
   color: string;
@@ -12,6 +24,7 @@ export type Category = {
 
 export type Transaction = {
   id: string;
+  userId: string;
   type: TransactionType;
   amount: number;
   currency?: Currency;
@@ -24,19 +37,9 @@ export type Transaction = {
   createdAt: string;
 };
 
-export type Budget = {
-  id: string;
-  categoryId: string;
-  month: string;
-  limit: number;
-  spent: number;
-  remaining: number;
-  usage: number;
-  category?: Category;
-};
-
 export type RecurringPayment = {
   id: string;
+  userId: string;
   type: TransactionType;
   amount: number;
   currency?: Currency;
@@ -60,9 +63,6 @@ export type DashboardSummary = {
   income: number;
   expenses: number;
   balance: number;
-  budgetLimit: number;
-  budgetSpent: number;
-  budgetRemaining: number;
   savingsRate: number;
   transactionCount: number;
 };

@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import type {
-  Budget,
+  AuthResponse,
   CashFlowPoint,
   Category,
   CategorySpend,
@@ -21,11 +21,20 @@ type RequestOptions = {
   body?: unknown;
 };
 
+let authToken: string | null = null;
+
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+};
+
 const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   const hasBody = options.body !== undefined;
   const response = await fetch(`${API_URL}${path}`, {
     method: options.method ?? "GET",
-    headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+    },
     body: hasBody ? JSON.stringify(options.body) : undefined
   });
 
@@ -50,6 +59,12 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
 
 export const api = {
   health: () => request<{ ok: boolean; timestamp: string }>("/health"),
+  register: (input: { name: string; username: string; password: string }) =>
+    request<AuthResponse>("/api/auth/register", { method: "POST", body: input }),
+  login: (input: { username: string; password: string }) =>
+    request<AuthResponse>("/api/auth/login", { method: "POST", body: input }),
+  refresh: () => request<AuthResponse>("/api/auth/refresh", { method: "POST" }),
+  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   categories: () => request<{ categories: Category[] }>("/api/categories"),
   createCategory: (input: CreateCategoryInput) =>
     request<{ category: Category }>("/api/categories", { method: "POST", body: input }),
@@ -64,9 +79,6 @@ export const api = {
   createRecurringPayment: (input: CreateRecurringPaymentInput) =>
     request<{ recurringPayment: RecurringPayment }>("/api/recurring-payments", { method: "POST", body: input }),
   deleteRecurringPayment: (id: string) => request<void>(`/api/recurring-payments/${id}`, { method: "DELETE" }),
-  budgets: (month: string) => request<{ budgets: Budget[] }>(`/api/budgets?month=${month}`),
-  upsertBudget: (input: { categoryId: string; month: string; limit: number }) =>
-    request<{ budget: Budget }>("/api/budgets", { method: "POST", body: input }),
   summary: (month: string) => request<{ summary: DashboardSummary }>(`/api/analytics/summary?month=${month}`),
   categorySpend: (month: string) =>
     request<{ categories: CategorySpend[] }>(`/api/analytics/categories?month=${month}`),
@@ -80,7 +92,6 @@ export const queryKeys = {
   categories: ["categories"] as const,
   transactions: ["transactions"] as const,
   recurringPayments: ["recurring-payments"] as const,
-  budgets: (month: string) => ["budgets", month] as const,
   summary: (month: string) => ["summary", month] as const,
   categorySpend: (month: string) => ["category-spend", month] as const,
   cashFlow: ["cash-flow"] as const

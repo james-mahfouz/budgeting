@@ -2,6 +2,17 @@ import { z } from "zod";
 
 export const monthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must use YYYY-MM format");
 
+export const registerSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  username: z.string().trim().toLowerCase().min(3).max(40).regex(/^[a-z0-9._-]+$/, "Username can use letters, numbers, dots, underscores, and dashes"),
+  password: z.string().min(8).max(128)
+});
+
+export const loginSchema = z.object({
+  username: z.string().trim().toLowerCase().min(1),
+  password: z.string().min(1).max(128)
+});
+
 export const createTransactionSchema = z.object({
   type: z.enum(["income", "expense"]),
   amount: z.coerce.number().positive().max(100_000_000_000),
@@ -42,12 +53,6 @@ export const transactionQuerySchema = z.object({
   type: z.enum(["income", "expense"]).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional()
-});
-
-export const upsertBudgetSchema = z.object({
-  categoryId: z.string().min(1),
-  month: monthSchema,
-  limit: z.coerce.number().positive().max(1_000_000)
 });
 
 export const analyticsQuerySchema = z.object({

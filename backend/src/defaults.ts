@@ -1,6 +1,6 @@
 import type { Category, DbData } from "./types.js";
 
-export const defaultCategories: Category[] = [
+export const defaultCategoryTemplates: Array<Omit<Category, "id" | "userId"> & { id: string }> = [
   { id: "salary", name: "Salary", kind: "income", color: "#2F855A", icon: "wallet" },
   { id: "side-hustle", name: "Side hustle", kind: "income", color: "#2B6CB0", icon: "briefcase" },
   { id: "groceries", name: "Groceries", kind: "expense", color: "#DD6B20", icon: "cart" },
@@ -13,10 +13,18 @@ export const defaultCategories: Category[] = [
   { id: "entertainment", name: "Entertainment", kind: "expense", color: "#B83280", icon: "ticket" }
 ];
 
+export const categoriesForUser = (userId: string): Category[] =>
+  defaultCategoryTemplates.map((category) => ({
+    ...category,
+    id: `${category.id}-${userId.slice(0, 8)}`,
+    userId
+  }));
+
 export const emptyDb: DbData = {
-  categories: defaultCategories,
+  users: [],
+  sessions: [],
+  categories: [],
   transactions: [],
-  budgets: [],
   recurringPayments: [],
   events: []
 };

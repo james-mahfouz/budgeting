@@ -8,7 +8,7 @@ import { IconButton } from "../components/IconButton";
 import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { TransactionRow } from "../components/TransactionRow";
-import { useBudgetStore } from "../store/useBudgetStore";
+import { useAppStore } from "../store/useAppStore";
 import { colors, radii, spacing, text } from "../theme";
 import type { TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
@@ -25,7 +25,7 @@ const filters: Array<{ label: string; value: Filter }> = [
 export const TransactionsScreen = () => {
   useScreenTracking("transactions");
   const [filter, setFilter] = useState<Filter>("all");
-  const openAddModal = useBudgetStore((state) => state.openAddModal);
+  const openAddModal = useAppStore((state) => state.openAddModal);
   const queryClient = useQueryClient();
   const month = currentMonth();
 
@@ -48,7 +48,6 @@ export const TransactionsScreen = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
         queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.cashFlow })
       ]);
@@ -59,7 +58,7 @@ export const TransactionsScreen = () => {
   });
 
   const confirmDelete = (id: string) => {
-    Alert.alert("Delete transaction?", "This removes it from your budget and analytics.", [
+    Alert.alert("Delete transaction?", "This removes it from your transactions and analytics.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate(id) }
     ]);
@@ -163,4 +162,3 @@ const styles = StyleSheet.create({
     paddingBottom: 112
   }
 });
-

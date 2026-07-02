@@ -1,14 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { API_URL, api, queryKeys, trackEvent } from "../api/client";
+import { API_URL, api, queryKeys, setAuthToken, trackEvent } from "../api/client";
+import { authTokenKey } from "../auth/storage";
 import { EmptyState } from "../components/EmptyState";
 import { Header } from "../components/Header";
 import { IconButton } from "../components/IconButton";
 import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
-import { useBudgetStore } from "../store/useBudgetStore";
+import { useAppStore } from "../store/useAppStore";
 import { colors, radii, spacing, text } from "../theme";
 import type { Category } from "../types";
 import { currentMonth, readableDate } from "../utils/date";
@@ -31,12 +33,13 @@ const scheduleLabel = (rule: { intervalUnit: string; scheduleDay?: number; inter
 
 export const SettingsScreen = () => {
   useScreenTracking("settings");
-  const openAddModal = useBudgetStore((state) => state.openAddModal);
-  const openCategoryModal = useBudgetStore((state) => state.openCategoryModal);
-  const openEditCategoryModal = useBudgetStore((state) => state.openEditCategoryModal);
-  const openRecurringModal = useBudgetStore((state) => state.openRecurringModal);
+  const openAddModal = useAppStore((state) => state.openAddModal);
+  const openCategoryModal = useAppStore((state) => state.openCategoryModal);
+  const openEditCategoryModal = useAppStore((state) => state.openEditCategoryModal);
+  const openRecurringModal = useAppStore((state) => state.openRecurringModal);
+  const user = useAppStore((state) => state.user);
+  const signOut = useAppStore((state) => state.signOut);
   const queryClient = useQueryClient();
-  const month = currentMonth();
   const healthQuery = useQuery({
     queryKey: queryKeys.health,
     queryFn: api.health,
@@ -67,9 +70,8 @@ export const SettingsScreen = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
         queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(month) })
+        queryClient.invalidateQueries({ queryKey: queryKeys.summary(currentMonth()) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(currentMonth()) })
       ]);
     },
     onError: (error) => {
@@ -82,6 +84,14 @@ export const SettingsScreen = () => {
     void queryClient.invalidateQueries();
   };
 
+  const logout = async () => {
+    await api.logout().catch(() => undefined);
+    setAuthToken(null);
+    await AsyncStorage.removeItem(authTokenKey);
+    queryClient.clear();
+    signOut();
+  };
+
   const confirmDeleteRecurring = (id: string) => {
     Alert.alert("Delete recurring payment?", "Future automatic payments will stop.", [
       { text: "Cancel", style: "cancel" },
@@ -90,7 +100,7 @@ export const SettingsScreen = () => {
   };
 
   const confirmDeleteCategory = (category: Category) => {
-    Alert.alert("Delete category?", `${category.name} will be removed from budgets and recurring payments. Existing transactions remain.`, [
+    Alert.alert("Delete category?", `${category.name} will be removed from recurring payments. Existing transactions remain.`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => deleteCategoryMutation.mutate(category.id) }
     ]);
@@ -103,6 +113,19 @@ export const SettingsScreen = () => {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={healthQuery.isRefetching} onRefresh={() => void healthQuery.refetch()} />}
       >
+        <Panel title="Account">
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: colors.primary }]} />
+            <View style={styles.statusCopy}>
+              <Text style={styles.statusTitle}>{user?.name ?? "Signed in"}</Text>
+              <Text style={styles.statusMeta} numberOfLines={1}>
+                @{user?.username}
+              </Text>
+            </View>
+          </View>
+          <ActionButton icon="log-out-outline" label="Logout" onPress={logout} />
+        </Panel>
+
         <Panel title="Quick actions">
           <ActionButton icon="add-circle" label="Add transaction" onPress={openAddModal} />
           <ActionButton icon="pricetag" label="Add category" onPress={openCategoryModal} />
@@ -184,16 +207,6 @@ export const SettingsScreen = () => {
           )}
         </Panel>
 
-        <Panel title="Analytics">
-          <View style={styles.analyticsRow}>
-            <Ionicons name="analytics" size={22} color={colors.primary} />
-            <Text style={styles.analyticsText}>
-              The app records lightweight first-party events such as app open, screen views, modal close, refresh, and
-              transaction creation. It does not include a third-party analytics SDK.
-            </Text>
-          </View>
-        </Panel>
-
         <Panel title="Backend">
           <View style={styles.statusRow}>
             <View style={[styles.statusDot, { backgroundColor: healthQuery.data?.ok ? colors.income : colors.danger }]} />
@@ -271,16 +284,6 @@ const styles = StyleSheet.create({
     ...text.body,
     flex: 1,
     fontWeight: "900"
-  },
-  analyticsRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md
-  },
-  analyticsText: {
-    ...text.muted,
-    flex: 1,
-    lineHeight: 20
   },
   recurringRow: {
     minHeight: 64,

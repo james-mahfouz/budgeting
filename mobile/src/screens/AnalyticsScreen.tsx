@@ -6,7 +6,7 @@ import { Header } from "../components/Header";
 import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { StatCard } from "../components/StatCard";
-import { colors, radii, spacing, text } from "../theme";
+import { colors, spacing, text } from "../theme";
 import { currentMonth, readableMonth } from "../utils/date";
 import { compactMoney, money } from "../utils/money";
 import { useScreenTracking } from "../utils/useScreenTracking";
@@ -39,10 +39,16 @@ export const AnalyticsScreen = () => {
         {summaryQuery.isLoading ? (
           <ActivityIndicator color={colors.primary} style={styles.loader} />
         ) : (
-          <View style={styles.statRow}>
-            <StatCard label="Income" value={money(summary?.income ?? 0)} icon="arrow-down-circle" tone="income" />
-            <StatCard label="Expenses" value={money(summary?.expenses ?? 0)} icon="arrow-up-circle" tone="expense" />
-          </View>
+          <>
+            <View style={styles.statRow}>
+              <StatCard label="Income" value={money(summary?.income ?? 0)} icon="arrow-down-circle" tone="income" />
+              <StatCard label="Expenses" value={money(summary?.expenses ?? 0)} icon="arrow-up-circle" tone="expense" />
+            </View>
+            <View style={styles.statRow}>
+              <StatCard label="Net" value={money(summary?.balance ?? 0)} icon="wallet" tone="blue" />
+              <StatCard label="Savings rate" value={`${summary?.savingsRate ?? 0}%`} icon="trending-up" tone="primary" />
+            </View>
+          </>
         )}
 
         <Panel title="Cash flow">
@@ -90,7 +96,9 @@ export const AnalyticsScreen = () => {
             categorySpend.map((item) => (
               <View key={item.categoryId} style={styles.categoryRow}>
                 <View style={styles.categoryHeader}>
-                  <Text style={styles.categoryName}>{item.name}</Text>
+                  <Text style={styles.categoryName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
                   <Text style={styles.categoryAmount}>{compactMoney(item.amount)}</Text>
                 </View>
                 <View style={styles.categoryTrack}>
@@ -212,4 +220,3 @@ const styles = StyleSheet.create({
     ...text.muted
   }
 });
-

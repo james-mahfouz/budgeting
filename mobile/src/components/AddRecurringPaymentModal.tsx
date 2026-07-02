@@ -112,7 +112,6 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
         queryClient.refetchQueries({ queryKey: queryKeys.recurringPayments, type: "active" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
         queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.cashFlow })
       ]);

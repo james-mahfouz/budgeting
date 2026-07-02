@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
-import { useBudgetStore } from "../store/useBudgetStore";
+import { useAppStore } from "../store/useAppStore";
 import { colors, radii, spacing, text } from "../theme";
 import type { TransactionType } from "../types";
 
@@ -42,7 +42,7 @@ const iconOptions: Array<keyof typeof Ionicons.glyphMap> = [
 
 export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) => {
   const queryClient = useQueryClient();
-  const editingCategory = useBudgetStore((state) => state.editingCategory);
+  const editingCategory = useAppStore((state) => state.editingCategory);
   const [kind, setKind] = useState<TransactionType>("expense");
   const [name, setName] = useState("");
   const [color, setColor] = useState(defaultColor);

@@ -3,8 +3,27 @@ export type CategoryKind = "income" | "expense";
 export type RecurringIntervalUnit = "day" | "week" | "month";
 export type Currency = "USD" | "LBP";
 
+export type User = {
+  id: string;
+  name: string;
+  username: string;
+  passwordHash: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AuthSession = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+};
+
 export type Category = {
   id: string;
+  userId: string;
   name: string;
   kind: CategoryKind;
   color: string;
@@ -13,6 +32,7 @@ export type Category = {
 
 export type Transaction = {
   id: string;
+  userId: string;
   type: TransactionType;
   amount: number;
   currency?: Currency;
@@ -25,17 +45,9 @@ export type Transaction = {
   createdAt: string;
 };
 
-export type Budget = {
-  id: string;
-  categoryId: string;
-  month: string;
-  limit: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type RecurringPayment = {
   id: string;
+  userId: string;
   type: TransactionType;
   amount: number;
   currency?: Currency;
@@ -56,15 +68,17 @@ export type RecurringPayment = {
 
 export type AnalyticsEvent = {
   id: string;
+  userId?: string;
   name: string;
   payload?: Record<string, unknown>;
   createdAt: string;
 };
 
 export type DbData = {
+  users: User[];
+  sessions: AuthSession[];
   categories: Category[];
   transactions: Transaction[];
-  budgets: Budget[];
   recurringPayments: RecurringPayment[];
   events: AnalyticsEvent[];
 };
@@ -74,9 +88,6 @@ export type DashboardSummary = {
   income: number;
   expenses: number;
   balance: number;
-  budgetLimit: number;
-  budgetSpent: number;
-  budgetRemaining: number;
   savingsRate: number;
   transactionCount: number;
 };

@@ -1,4 +1,4 @@
-import type { Budget, Category, DashboardSummary, Transaction } from "../types.js";
+import type { Category, DashboardSummary, Transaction } from "../types.js";
 import { currentMonth, monthBounds, monthLabel } from "./date.js";
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
@@ -10,25 +10,16 @@ export const transactionsForMonth = (transactions: Transaction[], month = curren
   });
 };
 
-export const getDashboardSummary = (
-  transactions: Transaction[],
-  budgets: Budget[],
-  month = currentMonth()
-): DashboardSummary => {
+export const getDashboardSummary = (transactions: Transaction[], month = currentMonth()): DashboardSummary => {
   const monthlyTransactions = transactionsForMonth(transactions, month);
   const income = sum(monthlyTransactions.filter((item) => item.type === "income").map((item) => item.amount));
   const expenses = sum(monthlyTransactions.filter((item) => item.type === "expense").map((item) => item.amount));
-  const monthlyBudgets = budgets.filter((budget) => budget.month === month);
-  const budgetLimit = sum(monthlyBudgets.map((budget) => budget.limit));
 
   return {
     month,
     income,
     expenses,
     balance: income - expenses,
-    budgetLimit,
-    budgetSpent: expenses,
-    budgetRemaining: budgetLimit - expenses,
     savingsRate: income > 0 ? Math.round(((income - expenses) / income) * 100) : 0,
     transactionCount: monthlyTransactions.length
   };
@@ -85,4 +76,3 @@ export const cashFlowTrend = (transactions: Transaction[]) => {
 
   return [...months.values()].slice(-6);
 };
-

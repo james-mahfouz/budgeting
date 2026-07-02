@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
-import { useBudgetStore } from "../store/useBudgetStore";
+import { useAppStore } from "../store/useAppStore";
 import { colors, radii, spacing, text } from "../theme";
 import type { Category, Currency, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
@@ -34,7 +34,7 @@ const typeOptions: Array<{ label: string; value: TransactionType; icon: keyof ty
 
 export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalProps) => {
   const queryClient = useQueryClient();
-  const openCategoryModal = useBudgetStore((state) => state.openCategoryModal);
+  const openCategoryModal = useAppStore((state) => state.openCategoryModal);
   const [type, setType] = useState<TransactionType>("expense");
   const [currency, setCurrency] = useState<Currency>("USD");
   const [amount, setAmount] = useState("");
@@ -96,7 +96,6 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
         queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.cashFlow })
       ]);
@@ -152,7 +151,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Add transaction</Text>
-              <Text style={styles.subtitle}>Track it now, tune the budget later.</Text>
+              <Text style={styles.subtitle}>Track income and expenses in USD.</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.ink} />

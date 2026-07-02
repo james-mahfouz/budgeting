@@ -2,26 +2,29 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
-import type { FastifyReply } from "fastify";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "node:crypto";
 import type { ZodError } from "zod";
 import { config } from "./config.js";
 import { JsonStore } from "./db.js";
+import { categoriesForUser } from "./defaults.js";
 import {
   analyticsQuerySchema,
   createCategorySchema,
   createRecurringPaymentSchema,
   createTransactionSchema,
   eventSchema,
+  loginSchema,
+  registerSchema,
   transactionQuerySchema,
-  updateCategorySchema,
-  upsertBudgetSchema
+  updateCategorySchema
 } from "./validation.js";
 import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
+import { createRawToken, hashPassword, hashToken, isSessionActive, publicUser, sessionExpiry, verifyPassword } from "./services/auth.js";
 import { normalizeMoney } from "./services/currency.js";
 import { currentMonth } from "./services/date.js";
 import { addInterval, hasDueRecurringPayments, nextScheduledRun, processDueRecurringPayments } from "./services/recurring.js";
-import type { Budget, Category, RecurringPayment, Transaction } from "./types.js";
+import type { AuthSession, Category, RecurringPayment, Transaction, User } from "./types.js";
 
 const slugify = (value: string) =>
   value
@@ -71,17 +74,179 @@ export const buildServer = async (store: JsonStore) => {
     });
   };
 
+  const issueSession = async (userId: string) => {
+    const token = createRawToken();
+    const now = new Date().toISOString();
+    const session: AuthSession = {
+      id: randomUUID(),
+      userId,
+      tokenHash: hashToken(token),
+      createdAt: now,
+      lastUsedAt: now,
+      expiresAt: sessionExpiry(new Date(now))
+    };
+
+    await store.update((data) => {
+      data.sessions = data.sessions.filter((item) => isSessionActive(item));
+      data.sessions.push(session);
+    });
+
+    return token;
+  };
+
+  const getAuthUser = (request: FastifyRequest) => {
+    const header = request.headers.authorization;
+    const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+    if (!token) {
+      return null;
+    }
+
+    const db = store.snapshot;
+    const session = db.sessions.find((item) => item.tokenHash === hashToken(token) && isSessionActive(item));
+    if (!session) {
+      return null;
+    }
+
+    const user = db.users.find((item) => item.id === session.userId);
+    return user ? { user, session, token } : null;
+  };
+
+  const requireUser = (request: FastifyRequest, reply: FastifyReply): User | null => {
+    const auth = getAuthUser(request);
+    if (!auth) {
+      reply.code(401).send({ error: "Authentication required" });
+      return null;
+    }
+
+    return auth.user;
+  };
+
   app.get("/health", async () => ({
     ok: true,
     service: "budgeting-backend",
     timestamp: new Date().toISOString()
   }));
 
-  app.get("/api/categories", async () => ({
-    categories: store.snapshot.categories
-  }));
+  app.post("/api/auth/register", async (request, reply) => {
+    const input = parseOrReply(registerSchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const user: User = {
+      id: randomUUID(),
+      name: input.name,
+      username: input.username,
+      passwordHash: hashPassword(input.password),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    let created = false;
+    await store.update((data) => {
+      const existing = data.users.some((item) => item.username === input.username);
+      if (existing) {
+        return;
+      }
+
+      data.users.push(user);
+      data.categories.push(...categoriesForUser(user.id));
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: "user_registered",
+        createdAt: now
+      });
+      created = true;
+    });
+
+    if (!created) {
+      reply.code(409).send({ error: "Username already exists" });
+      return;
+    }
+
+    const token = await issueSession(user.id);
+    reply.code(201).send({ token, user: publicUser(user) });
+  });
+
+  app.post("/api/auth/login", async (request, reply) => {
+    const input = parseOrReply(loginSchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const user = store.snapshot.users.find((item) => item.username === input.username);
+    if (!user || !verifyPassword(input.password, user.passwordHash)) {
+      reply.code(401).send({ error: "Invalid username or password" });
+      return;
+    }
+
+    const token = await issueSession(user.id);
+    reply.send({ token, user: publicUser(user) });
+  });
+
+  app.post("/api/auth/refresh", async (request, reply) => {
+    const auth = getAuthUser(request);
+    if (!auth) {
+      reply.code(401).send({ error: "Authentication required" });
+      return;
+    }
+
+    const token = createRawToken();
+    const tokenHash = hashToken(token);
+    const now = new Date().toISOString();
+    await store.update((data) => {
+      const session = data.sessions.find((item) => item.id === auth.session.id && item.userId === auth.user.id);
+      if (!session) {
+        return;
+      }
+
+      session.tokenHash = tokenHash;
+      session.lastUsedAt = now;
+      session.expiresAt = sessionExpiry(new Date(now));
+    });
+
+    reply.send({ token, user: publicUser(auth.user) });
+  });
+
+  app.get("/api/auth/me", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    reply.send({ user: publicUser(user) });
+  });
+
+  app.post("/api/auth/logout", async (request, reply) => {
+    const auth = getAuthUser(request);
+    if (auth) {
+      await store.update((data) => {
+        data.sessions = data.sessions.filter((session) => session.id !== auth.session.id);
+      });
+    }
+
+    reply.code(204).send();
+  });
+
+  app.get("/api/categories", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    return {
+      categories: store.snapshot.categories.filter((category) => category.userId === user.id)
+    };
+  });
 
   app.post("/api/categories", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const input = parseOrReply(createCategorySchema.safeParse(request.body), reply);
     if (!input) {
       return;
@@ -93,7 +258,7 @@ export const buildServer = async (store: JsonStore) => {
 
     await store.update((data) => {
       const existingName = data.categories.find(
-        (item) => item.kind === input.kind && item.name.toLowerCase() === input.name.toLowerCase()
+        (item) => item.userId === user.id && item.kind === input.kind && item.name.toLowerCase() === input.name.toLowerCase()
       );
 
       if (existingName) {
@@ -104,6 +269,7 @@ export const buildServer = async (store: JsonStore) => {
       const id = data.categories.some((item) => item.id === baseId) ? `${baseId}-${randomUUID().slice(0, 8)}` : baseId;
       category = {
         id,
+        userId: user.id,
         name: input.name,
         kind: input.kind,
         color: input.color,
@@ -112,6 +278,7 @@ export const buildServer = async (store: JsonStore) => {
       data.categories.push(category);
       data.events.push({
         id: randomUUID(),
+        userId: user.id,
         name: "category_created",
         payload: { categoryId: id, kind: input.kind },
         createdAt: now
@@ -122,6 +289,11 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.put("/api/categories/:id", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const id = (request.params as { id: string }).id;
     const input = parseOrReply(updateCategorySchema.safeParse(request.body), reply);
     if (!input) {
@@ -132,7 +304,7 @@ export const buildServer = async (store: JsonStore) => {
     let category: Category | undefined;
 
     await store.update((data) => {
-      category = data.categories.find((item) => item.id === id);
+      category = data.categories.find((item) => item.id === id && item.userId === user.id);
       if (!category) {
         return;
       }
@@ -142,12 +314,9 @@ export const buildServer = async (store: JsonStore) => {
       category.color = input.color;
       category.icon = input.icon;
 
-      if (input.kind !== "expense") {
-        data.budgets = data.budgets.filter((budget) => budget.categoryId !== id);
-      }
-
       data.events.push({
         id: randomUUID(),
+        userId: user.id,
         name: "category_updated",
         payload: { categoryId: id, kind: input.kind },
         createdAt: now
@@ -163,12 +332,17 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.delete("/api/categories/:id", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const id = (request.params as { id: string }).id;
     const now = new Date().toISOString();
     let removed = false;
 
     await store.update((data) => {
-      const nextCategories = data.categories.filter((category) => category.id !== id);
+      const nextCategories = data.categories.filter((category) => category.id !== id || category.userId !== user.id);
       removed = nextCategories.length !== data.categories.length;
 
       if (!removed) {
@@ -176,10 +350,10 @@ export const buildServer = async (store: JsonStore) => {
       }
 
       data.categories = nextCategories;
-      data.budgets = data.budgets.filter((budget) => budget.categoryId !== id);
-      data.recurringPayments = data.recurringPayments.filter((rule) => rule.categoryId !== id);
+      data.recurringPayments = data.recurringPayments.filter((rule) => rule.categoryId !== id || rule.userId !== user.id);
       data.events.push({
         id: randomUUID(),
+        userId: user.id,
         name: "category_deleted",
         payload: { categoryId: id },
         createdAt: now
@@ -195,6 +369,11 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.get("/api/transactions", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     await syncDueRecurringPayments();
     const query = parseOrReply(transactionQuerySchema.safeParse(request.query), reply);
     if (!query) {
@@ -202,6 +381,7 @@ export const buildServer = async (store: JsonStore) => {
     }
 
     const transactions = store.snapshot.transactions
+      .filter((transaction) => transaction.userId === user.id)
       .filter((transaction) => (query.type ? transaction.type === query.type : true))
       .filter((transaction) => (query.from ? transaction.occurredAt >= query.from : true))
       .filter((transaction) => (query.to ? transaction.occurredAt <= query.to : true))
@@ -212,13 +392,18 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.post("/api/transactions", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const input = parseOrReply(createTransactionSchema.safeParse(request.body), reply);
     if (!input) {
       return;
     }
 
     const db = store.snapshot;
-    const category = db.categories.find((item) => item.id === input.categoryId);
+    const category = db.categories.find((item) => item.id === input.categoryId && item.userId === user.id);
 
     if (!category || category.kind !== input.type) {
       reply.code(422).send({ error: "Category does not match the transaction type" });
@@ -229,6 +414,7 @@ export const buildServer = async (store: JsonStore) => {
     const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
     const transaction: Transaction = {
       id: randomUUID(),
+      userId: user.id,
       type: input.type,
       amount: money.amount,
       currency: money.currency,
@@ -245,6 +431,7 @@ export const buildServer = async (store: JsonStore) => {
       data.transactions.push(transaction);
       data.events.push({
         id: randomUUID(),
+        userId: user.id,
         name: "transaction_created",
         payload: {
           transactionId: transaction.id,
@@ -259,21 +446,33 @@ export const buildServer = async (store: JsonStore) => {
     reply.code(201).send({ transaction });
   });
 
-  app.get("/api/recurring-payments", async () => {
+  app.get("/api/recurring-payments", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     await syncDueRecurringPayments();
     return {
-      recurringPayments: store.snapshot.recurringPayments.sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt))
+      recurringPayments: store.snapshot.recurringPayments
+        .filter((rule) => rule.userId === user.id)
+        .sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt))
     };
   });
 
   app.post("/api/recurring-payments", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const input = parseOrReply(createRecurringPaymentSchema.safeParse(request.body), reply);
     if (!input) {
       return;
     }
 
     const db = store.snapshot;
-    const category = db.categories.find((item) => item.id === input.categoryId);
+    const category = db.categories.find((item) => item.id === input.categoryId && item.userId === user.id);
 
     if (!category || category.kind !== input.type) {
       reply.code(422).send({ error: "Category does not match the recurring payment type" });
@@ -301,6 +500,7 @@ export const buildServer = async (store: JsonStore) => {
     const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
     const recurringPayment: RecurringPayment = {
       id: randomUUID(),
+      userId: user.id,
       type: input.type,
       amount: money.amount,
       currency: money.currency,
@@ -325,6 +525,7 @@ export const buildServer = async (store: JsonStore) => {
       if (input.addNow) {
         data.transactions.push({
           id: randomUUID(),
+          userId: user.id,
           type: input.type,
           amount: money.amount,
           currency: money.currency,
@@ -340,6 +541,7 @@ export const buildServer = async (store: JsonStore) => {
 
       data.events.push({
         id: randomUUID(),
+        userId: user.id,
         name: "recurring_payment_created",
         payload: { recurringPaymentId: recurringPayment.id, addNow: input.addNow },
         createdAt: nowIso
@@ -350,11 +552,16 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.delete("/api/recurring-payments/:id", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const id = (request.params as { id: string }).id;
     let removed = false;
 
     await store.update((data) => {
-      const next = data.recurringPayments.filter((rule) => rule.id !== id);
+      const next = data.recurringPayments.filter((rule) => rule.id !== id || rule.userId !== user.id);
       removed = next.length !== data.recurringPayments.length;
       data.recurringPayments = next;
     });
@@ -368,11 +575,16 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.delete("/api/transactions/:id", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const id = (request.params as { id: string }).id;
     let removed = false;
 
     await store.update((data) => {
-      const next = data.transactions.filter((transaction) => transaction.id !== id);
+      const next = data.transactions.filter((transaction) => transaction.id !== id || transaction.userId !== user.id);
       removed = next.length !== data.transactions.length;
       data.transactions = next;
     });
@@ -385,76 +597,12 @@ export const buildServer = async (store: JsonStore) => {
     reply.code(204).send();
   });
 
-  app.get("/api/budgets", async (request, reply) => {
-    await syncDueRecurringPayments();
-    const query = parseOrReply(analyticsQuerySchema.safeParse(request.query), reply);
-    if (!query) {
-      return;
-    }
-
-    const db = store.snapshot;
-    const month = query.month ?? currentMonth();
-    const monthTransactions = db.transactions.filter((transaction) => transaction.occurredAt.slice(0, 7) === month);
-    const budgets = db.budgets
-      .filter((budget) => budget.month === month)
-      .map((budget) => {
-        const category = db.categories.find((item) => item.id === budget.categoryId);
-        const spent = monthTransactions
-          .filter((transaction) => transaction.categoryId === budget.categoryId && transaction.type === "expense")
-          .reduce((total, transaction) => total + transaction.amount, 0);
-
-        return {
-          ...budget,
-          category,
-          spent,
-          remaining: budget.limit - spent,
-          usage: budget.limit > 0 ? Math.round((spent / budget.limit) * 100) : 0
-        };
-      });
-
-    return { budgets };
-  });
-
-  app.post("/api/budgets", async (request, reply) => {
-    const input = parseOrReply(upsertBudgetSchema.safeParse(request.body), reply);
-    if (!input) {
-      return;
-    }
-
-    const db = store.snapshot;
-    const category = db.categories.find((item) => item.id === input.categoryId);
-
-    if (!category || category.kind !== "expense") {
-      reply.code(422).send({ error: "Budgets can only be set for expense categories" });
-      return;
-    }
-
-    const now = new Date().toISOString();
-    let budget: Budget | undefined;
-
-    await store.update((data) => {
-      budget = data.budgets.find((item) => item.categoryId === input.categoryId && item.month === input.month);
-
-      if (budget) {
-        budget.limit = input.limit;
-        budget.updatedAt = now;
-      } else {
-        budget = {
-          id: randomUUID(),
-          categoryId: input.categoryId,
-          month: input.month,
-          limit: input.limit,
-          createdAt: now,
-          updatedAt: now
-        };
-        data.budgets.push(budget);
-      }
-    });
-
-    reply.code(201).send({ budget });
-  });
-
   app.get("/api/analytics/summary", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     await syncDueRecurringPayments();
     const query = parseOrReply(analyticsQuerySchema.safeParse(request.query), reply);
     if (!query) {
@@ -463,11 +611,16 @@ export const buildServer = async (store: JsonStore) => {
 
     const db = store.snapshot;
     return {
-      summary: getDashboardSummary(db.transactions, db.budgets, query.month ?? currentMonth())
+      summary: getDashboardSummary(db.transactions.filter((transaction) => transaction.userId === user.id), query.month ?? currentMonth())
     };
   });
 
   app.get("/api/analytics/categories", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     await syncDueRecurringPayments();
     const query = parseOrReply(analyticsQuerySchema.safeParse(request.query), reply);
     if (!query) {
@@ -475,19 +628,31 @@ export const buildServer = async (store: JsonStore) => {
     }
 
     const db = store.snapshot;
+    const transactions = db.transactions.filter((transaction) => transaction.userId === user.id);
+    const categories = db.categories.filter((category) => category.userId === user.id);
     return {
-      categories: spendingByCategory(db.transactions, db.categories, query.month ?? currentMonth())
+      categories: spendingByCategory(transactions, categories, query.month ?? currentMonth())
     };
   });
 
-  app.get("/api/analytics/cash-flow", async () => {
+  app.get("/api/analytics/cash-flow", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     await syncDueRecurringPayments();
     return {
-      cashFlow: cashFlowTrend(store.snapshot.transactions)
+      cashFlow: cashFlowTrend(store.snapshot.transactions.filter((transaction) => transaction.userId === user.id))
     };
   });
 
   app.post("/api/events", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const input = parseOrReply(eventSchema.safeParse(request.body), reply);
     if (!input) {
       return;
@@ -495,6 +660,7 @@ export const buildServer = async (store: JsonStore) => {
 
     const event = {
       id: randomUUID(),
+      userId: user.id,
       name: input.name,
       payload: input.payload,
       createdAt: new Date().toISOString()
@@ -508,10 +674,18 @@ export const buildServer = async (store: JsonStore) => {
     reply.code(201).send({ event });
   });
 
-  app.get("/api/events", async (request) => {
+  app.get("/api/events", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
     const limit = Number((request.query as { limit?: string }).limit ?? 50);
     return {
-      events: store.snapshot.events.slice(-Math.min(Math.max(limit, 1), 200)).reverse()
+      events: store.snapshot.events
+        .filter((event) => event.userId === user.id)
+        .slice(-Math.min(Math.max(limit, 1), 200))
+        .reverse()
     };
   });
 

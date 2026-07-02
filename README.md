@@ -2,8 +2,8 @@
 
 Full-stack budgeting app workspace:
 
-- `backend`: TypeScript Fastify API with JSON-file persistence, validation, seed data, budgets, transactions, and event analytics.
-- `mobile`: Expo React Native app focused on Android with bottom tabs, launch-time add transaction modal, dashboard, transactions, budgets, analytics, and settings.
+- `backend`: TypeScript Fastify API with JSON-file persistence, validation, seed data, transactions, recurring payments, and event analytics.
+- `mobile`: Expo React Native app focused on Android with bottom tabs, launch-time add transaction modal, dashboard, transactions, analytics, settings, categories, and recurring payments.
 
 ## Run it
 
@@ -32,16 +32,21 @@ Android emulator uses `10.0.2.2` to reach your host machine. For a physical phon
 ## Backend API
 
 - `GET /health`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
 - `GET /api/categories`
 - `GET /api/transactions`
 - `POST /api/transactions`
 - `DELETE /api/transactions/:id`
-- `GET /api/budgets`
-- `POST /api/budgets`
 - `GET /api/analytics/summary`
 - `GET /api/analytics/categories`
 - `GET /api/analytics/cash-flow`
 - `POST /api/events`
+
+All `/api/*` routes except register and login require `Authorization: Bearer <token>`. Register creates a private default category set for that user. The mobile app stores the token locally and refreshes it automatically so the user stays logged in.
 
 The app stores analytics events as simple product events such as app open, screen view, modal close, transaction create, and sync refresh. No third-party analytics SDK is included, so privacy remains easy to reason about.
 
@@ -74,4 +79,4 @@ SEED_ON_DEPLOY=1 bash deploy.sh
 HOST_PORT=8080 bash deploy.sh
 ```
 
-Use `SEED_ON_DEPLOY=1` only for demos because it overwrites transactions and budgets.
+Use `SEED_ON_DEPLOY=1` only for demos because it overwrites transactions and recurring payments.

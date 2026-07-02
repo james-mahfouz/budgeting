@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys } from "../api/client";
-import { BudgetProgress } from "../components/BudgetProgress";
 import { EmptyState } from "../components/EmptyState";
 import { Header } from "../components/Header";
 import { IconButton } from "../components/IconButton";
@@ -11,7 +10,7 @@ import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { StatCard } from "../components/StatCard";
 import { TransactionRow } from "../components/TransactionRow";
-import { useBudgetStore } from "../store/useBudgetStore";
+import { useAppStore } from "../store/useAppStore";
 import { colors, radii, spacing, text } from "../theme";
 import { currentMonth, readableMonth } from "../utils/date";
 import { money } from "../utils/money";
@@ -19,13 +18,12 @@ import { useScreenTracking } from "../utils/useScreenTracking";
 
 export const DashboardScreen = () => {
   useScreenTracking("dashboard");
-  const openAddModal = useBudgetStore((state) => state.openAddModal);
+  const openAddModal = useAppStore((state) => state.openAddModal);
   const month = currentMonth();
 
   const categoriesQuery = useQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
   const summaryQuery = useQuery({ queryKey: queryKeys.summary(month), queryFn: () => api.summary(month) });
   const transactionsQuery = useQuery({ queryKey: queryKeys.transactions, queryFn: () => api.transactions(5) });
-  const budgetsQuery = useQuery({ queryKey: queryKeys.budgets(month), queryFn: () => api.budgets(month) });
   const spendQuery = useQuery({ queryKey: queryKeys.categorySpend(month), queryFn: () => api.categorySpend(month) });
 
   const categoriesById = useMemo(() => {
@@ -33,15 +31,13 @@ export const DashboardScreen = () => {
   }, [categoriesQuery.data?.categories]);
 
   const summary = summaryQuery.data?.summary;
-  const budgetProgress = summary?.budgetLimit ? Math.min((summary.budgetSpent / summary.budgetLimit) * 100, 100) : 0;
-  const refreshing =
-    summaryQuery.isRefetching || transactionsQuery.isRefetching || budgetsQuery.isRefetching || spendQuery.isRefetching;
+  const spendingProgress = summary?.income ? Math.min((summary.expenses / summary.income) * 100, 100) : 0;
+  const refreshing = summaryQuery.isRefetching || transactionsQuery.isRefetching || spendQuery.isRefetching;
 
   const refresh = () => {
     void Promise.all([
       summaryQuery.refetch(),
       transactionsQuery.refetch(),
-      budgetsQuery.refetch(),
       spendQuery.refetch(),
       categoriesQuery.refetch()
     ]);
@@ -71,7 +67,7 @@ export const DashboardScreen = () => {
               <Text style={styles.heroMeta}>Spent {money(summary?.expenses ?? 0)}</Text>
             </View>
             <View style={styles.heroTrack}>
-              <View style={[styles.heroFill, { width: `${budgetProgress}%` }]} />
+              <View style={[styles.heroFill, { width: `${spendingProgress}%` }]} />
             </View>
           </LinearGradient>
         )}
@@ -80,22 +76,6 @@ export const DashboardScreen = () => {
           <StatCard label="Savings rate" value={`${summary?.savingsRate ?? 0}%`} icon="trending-up" tone="income" />
           <StatCard label="Transactions" value={`${summary?.transactionCount ?? 0}`} icon="receipt" tone="blue" />
         </View>
-
-        <Panel title="Budget watch">
-          {(budgetsQuery.data?.budgets ?? []).length ? (
-            budgetsQuery.data?.budgets.slice(0, 4).map((budget) => (
-              <BudgetProgress
-                key={budget.id}
-                name={budget.category?.name ?? "Budget"}
-                color={budget.category?.color ?? colors.primary}
-                spent={budget.spent}
-                limit={budget.limit}
-              />
-            ))
-          ) : (
-            <EmptyState icon="speedometer" title="No budgets yet" body="Add a few category limits to see progress here." />
-          )}
-        </Panel>
 
         <Panel title="Top spending">
           {(spendQuery.data?.categories ?? []).length ? (
@@ -202,4 +182,3 @@ const styles = StyleSheet.create({
     fontWeight: "900"
   }
 });
-

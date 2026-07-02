@@ -4,9 +4,10 @@ import { emptyDb } from "./defaults.js";
 import type { DbData } from "./types.js";
 
 const cloneDb = (data: DbData): DbData => ({
+  users: [...data.users],
+  sessions: [...data.sessions],
   categories: [...data.categories],
   transactions: [...data.transactions],
-  budgets: [...data.budgets],
   recurringPayments: [...data.recurringPayments],
   events: [...data.events]
 });
@@ -24,9 +25,10 @@ export class JsonStore {
       const contents = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(contents) as Partial<DbData>;
       this.data = {
+        users: parsed.users ?? [],
+        sessions: parsed.sessions ?? [],
         categories: parsed.categories?.length ? parsed.categories : emptyDb.categories,
         transactions: parsed.transactions ?? [],
-        budgets: parsed.budgets ?? [],
         recurringPayments: parsed.recurringPayments ?? [],
         events: parsed.events ?? []
       };
