@@ -1,5 +1,6 @@
 export type TransactionType = "income" | "expense";
 export type CategoryKind = "income" | "expense";
+export type RecurringIntervalUnit = "day" | "week" | "month";
 
 export type Category = {
   id: string;
@@ -29,6 +30,22 @@ export type Budget = {
   updatedAt: string;
 };
 
+export type RecurringPayment = {
+  id: string;
+  type: TransactionType;
+  amount: number;
+  categoryId: string;
+  merchant: string;
+  note?: string;
+  intervalUnit: RecurringIntervalUnit;
+  intervalEvery: number;
+  nextRunAt: string;
+  lastRunAt?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AnalyticsEvent = {
   id: string;
   name: string;
@@ -40,6 +57,7 @@ export type DbData = {
   categories: Category[];
   transactions: Transaction[];
   budgets: Budget[];
+  recurringPayments: RecurringPayment[];
   events: AnalyticsEvent[];
 };
 
@@ -54,4 +72,3 @@ export type DashboardSummary = {
   savingsRate: number;
   transactionCount: number;
 };
-

@@ -1,27 +1,58 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_URL, api, queryKeys, trackEvent } from "../api/client";
+import { EmptyState } from "../components/EmptyState";
 import { Header } from "../components/Header";
+import { IconButton } from "../components/IconButton";
 import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { useBudgetStore } from "../store/useBudgetStore";
 import { colors, radii, spacing, text } from "../theme";
+import { readableDate } from "../utils/date";
+import { money } from "../utils/money";
 import { useScreenTracking } from "../utils/useScreenTracking";
 
 export const SettingsScreen = () => {
   useScreenTracking("settings");
   const openAddModal = useBudgetStore((state) => state.openAddModal);
+  const openCategoryModal = useBudgetStore((state) => state.openCategoryModal);
+  const openRecurringModal = useBudgetStore((state) => state.openRecurringModal);
   const queryClient = useQueryClient();
   const healthQuery = useQuery({
     queryKey: queryKeys.health,
     queryFn: api.health,
     retry: 1
   });
+  const categoriesQuery = useQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
+  const recurringQuery = useQuery({ queryKey: queryKeys.recurringPayments, queryFn: api.recurringPayments });
+
+  const categoriesById = useMemo(() => {
+    return new Map((categoriesQuery.data?.categories ?? []).map((category) => [category.id, category]));
+  }, [categoriesQuery.data?.categories]);
+
+  const deleteRecurringMutation = useMutation({
+    mutationFn: api.deleteRecurringPayment,
+    onSuccess: async () => {
+      trackEvent("recurring_payment_deleted");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments });
+    },
+    onError: (error) => {
+      Alert.alert("Could not delete recurring payment", error instanceof Error ? error.message : "Try again.");
+    }
+  });
 
   const refreshAll = () => {
     trackEvent("manual_refresh");
     void queryClient.invalidateQueries();
+  };
+
+  const confirmDeleteRecurring = (id: string) => {
+    Alert.alert("Delete recurring payment?", "Future automatic payments will stop.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteRecurringMutation.mutate(id) }
+    ]);
   };
 
   return (
@@ -49,7 +80,50 @@ export const SettingsScreen = () => {
 
         <Panel title="Quick actions">
           <ActionButton icon="add-circle" label="Add transaction" onPress={openAddModal} />
+          <ActionButton icon="pricetag" label="Add category" onPress={openCategoryModal} />
+          <ActionButton icon="repeat" label="Add recurring payment" onPress={openRecurringModal} />
           <ActionButton icon="sync" label="Refresh data" onPress={refreshAll} />
+        </Panel>
+
+        <Panel title="Recurring payments">
+          {(recurringQuery.data?.recurringPayments ?? []).length ? (
+            recurringQuery.data?.recurringPayments.map((rule) => {
+              const category = categoriesById.get(rule.categoryId);
+              return (
+                <View key={rule.id} style={styles.recurringRow}>
+                  <View style={[styles.recurringIcon, { backgroundColor: `${category?.color ?? colors.primary}18` }]}>
+                    <Ionicons
+                      name={(category?.icon as keyof typeof Ionicons.glyphMap) ?? "repeat"}
+                      size={18}
+                      color={category?.color ?? colors.primary}
+                    />
+                  </View>
+                  <View style={styles.recurringCopy}>
+                    <Text style={styles.recurringTitle} numberOfLines={1}>
+                      {rule.merchant}
+                    </Text>
+                    <Text style={styles.recurringMeta} numberOfLines={1}>
+                      {money(rule.amount)} every {rule.intervalEvery} {rule.intervalUnit}
+                      {rule.intervalEvery > 1 ? "s" : ""} · next {readableDate(rule.nextRunAt)}
+                    </Text>
+                  </View>
+                  <IconButton
+                    name="trash-outline"
+                    label="Delete recurring payment"
+                    onPress={() => confirmDeleteRecurring(rule.id)}
+                    color={colors.danger}
+                    backgroundColor="#FEF3F2"
+                  />
+                </View>
+              );
+            })
+          ) : (
+            <EmptyState
+              icon="repeat"
+              title="No recurring payments"
+              body="Add rent, subscriptions, salary, or any payment that repeats."
+            />
+          )}
         </Panel>
 
         <Panel title="Analytics">
@@ -133,6 +207,30 @@ const styles = StyleSheet.create({
     ...text.muted,
     flex: 1,
     lineHeight: 20
+  },
+  recurringRow: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md
+  },
+  recurringIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  recurringCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  recurringTitle: {
+    ...text.body,
+    fontWeight: "900"
+  },
+  recurringMeta: {
+    ...text.muted,
+    marginTop: 2
   }
 });
-

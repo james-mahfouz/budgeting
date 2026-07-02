@@ -1,0 +1,314 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from "react-native";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, queryKeys, trackEvent } from "../api/client";
+import { colors, radii, spacing, text } from "../theme";
+import type { TransactionType } from "../types";
+
+type AddCategoryModalProps = {
+  visible: boolean;
+  onClose: () => void;
+};
+
+const defaultColor = "#0E9384";
+const colorOptions = [defaultColor, "#2563EB", "#DD6B20", "#805AD5", "#D53F8C", "#2F855A", "#4A5568"];
+const iconOptions: Array<keyof typeof Ionicons.glyphMap> = [
+  "pricetag",
+  "cart",
+  "home",
+  "car",
+  "restaurant",
+  "medical",
+  "bag",
+  "ticket",
+  "wallet",
+  "briefcase"
+];
+
+export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) => {
+  const queryClient = useQueryClient();
+  const [kind, setKind] = useState<TransactionType>("expense");
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(defaultColor);
+  const [icon, setIcon] = useState<keyof typeof Ionicons.glyphMap>("pricetag");
+
+  const reset = () => {
+    setKind("expense");
+    setName("");
+    setColor(defaultColor);
+    setIcon("pricetag");
+  };
+
+  const mutation = useMutation({
+    mutationFn: api.createCategory,
+    onSuccess: async () => {
+      trackEvent("category_created_from_app", { kind });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.categories });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      reset();
+      onClose();
+    },
+    onError: (error) => {
+      Alert.alert("Could not save category", error instanceof Error ? error.message : "Try again.");
+    }
+  });
+
+  const submit = () => {
+    if (!name.trim()) {
+      Alert.alert("Name needed", "Add a category name.");
+      return;
+    }
+
+    mutation.mutate({ name: name.trim(), kind, color, icon });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+        <Pressable style={styles.scrim} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>Add category</Text>
+              <Text style={styles.subtitle}>Create it once, use it everywhere.</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={22} color={colors.ink} />
+            </Pressable>
+          </View>
+
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={styles.segment}>
+              {(["expense", "income"] as TransactionType[]).map((value) => {
+                const selected = kind === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => setKind(value)}
+                    style={[styles.segmentButton, selected && styles.segmentButtonActive]}
+                  >
+                    <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>
+                      {value === "expense" ? "Expense" : "Income"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder={kind === "expense" ? "Subscriptions" : "Bonus"}
+              style={styles.input}
+              placeholderTextColor={colors.muted}
+            />
+
+            <Text style={styles.label}>Color</Text>
+            <View style={styles.swatches}>
+              {colorOptions.map((option) => (
+                <Pressable
+                  key={option}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use color ${option}`}
+                  onPress={() => setColor(option)}
+                  style={[styles.swatch, { backgroundColor: option }, color === option && styles.swatchActive]}
+                />
+              ))}
+            </View>
+
+            <Text style={styles.label}>Icon</Text>
+            <View style={styles.icons}>
+              {iconOptions.map((option) => {
+                const selected = icon === option;
+                return (
+                  <Pressable
+                    key={option}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use icon ${option}`}
+                    onPress={() => setIcon(option)}
+                    style={[styles.iconButton, selected && { borderColor: color, backgroundColor: `${color}16` }]}
+                  >
+                    <Ionicons name={option} size={20} color={selected ? color : colors.muted} />
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={submit}
+              disabled={mutation.isPending}
+              style={({ pressed }) => [styles.submit, { opacity: pressed || mutation.isPending ? 0.72 : 1 }]}
+            >
+              {mutation.isPending ? (
+                <ActivityIndicator color={colors.surface} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.surface} />
+                  <Text style={styles.submitText}>Save category</Text>
+                </>
+              )}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: "flex-end"
+  },
+  scrim: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.36)"
+  },
+  sheet: {
+    maxHeight: "88%",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.sm
+  },
+  handle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    alignSelf: "center",
+    marginBottom: spacing.lg
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.lg,
+    gap: spacing.md
+  },
+  title: {
+    ...text.h2,
+    fontSize: 22
+  },
+  subtitle: {
+    ...text.muted,
+    marginTop: 2
+  },
+  closeButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  segment: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radii.md,
+    padding: spacing.xs,
+    marginBottom: spacing.lg
+  },
+  segmentButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.sm,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  segmentButtonActive: {
+    backgroundColor: colors.primary
+  },
+  segmentText: {
+    color: colors.ink,
+    fontWeight: "800"
+  },
+  segmentTextActive: {
+    color: colors.surface
+  },
+  label: {
+    ...text.muted,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+    marginTop: spacing.md
+  },
+  input: {
+    minHeight: 52,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    color: colors.ink,
+    backgroundColor: colors.background,
+    fontSize: 16
+  },
+  swatches: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.md
+  },
+  swatch: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 3,
+    borderColor: colors.surface
+  },
+  swatchActive: {
+    borderColor: colors.ink
+  },
+  icons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  submit: {
+    minHeight: 54,
+    borderRadius: radii.md,
+    marginTop: spacing.xl,
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm
+  },
+  submitText: {
+    color: colors.surface,
+    fontWeight: "900",
+    fontSize: 16
+  }
+});

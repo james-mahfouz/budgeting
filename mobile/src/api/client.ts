@@ -4,8 +4,11 @@ import type {
   CashFlowPoint,
   Category,
   CategorySpend,
+  CreateCategoryInput,
+  CreateRecurringPaymentInput,
   CreateTransactionInput,
   DashboardSummary,
+  RecurringPayment,
   Transaction
 } from "../types";
 
@@ -48,10 +51,16 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
 export const api = {
   health: () => request<{ ok: boolean; timestamp: string }>("/health"),
   categories: () => request<{ categories: Category[] }>("/api/categories"),
+  createCategory: (input: CreateCategoryInput) =>
+    request<{ category: Category }>("/api/categories", { method: "POST", body: input }),
   transactions: (limit = 50) => request<{ transactions: Transaction[] }>(`/api/transactions?limit=${limit}`),
   createTransaction: (input: CreateTransactionInput) =>
     request<{ transaction: Transaction }>("/api/transactions", { method: "POST", body: input }),
   deleteTransaction: (id: string) => request<void>(`/api/transactions/${id}`, { method: "DELETE" }),
+  recurringPayments: () => request<{ recurringPayments: RecurringPayment[] }>("/api/recurring-payments"),
+  createRecurringPayment: (input: CreateRecurringPaymentInput) =>
+    request<{ recurringPayment: RecurringPayment }>("/api/recurring-payments", { method: "POST", body: input }),
+  deleteRecurringPayment: (id: string) => request<void>(`/api/recurring-payments/${id}`, { method: "DELETE" }),
   budgets: (month: string) => request<{ budgets: Budget[] }>(`/api/budgets?month=${month}`),
   upsertBudget: (input: { categoryId: string; month: string; limit: number }) =>
     request<{ budget: Budget }>("/api/budgets", { method: "POST", body: input }),
@@ -67,6 +76,7 @@ export const queryKeys = {
   health: ["health"] as const,
   categories: ["categories"] as const,
   transactions: ["transactions"] as const,
+  recurringPayments: ["recurring-payments"] as const,
   budgets: (month: string) => ["budgets", month] as const,
   summary: (month: string) => ["summary", month] as const,
   categorySpend: (month: string) => ["category-spend", month] as const,
@@ -76,4 +86,3 @@ export const queryKeys = {
 export const trackEvent = (name: string, payload?: Record<string, unknown>) => {
   void api.track(name, payload).catch(() => undefined);
 };
-

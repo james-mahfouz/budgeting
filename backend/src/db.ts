@@ -7,6 +7,7 @@ const cloneDb = (data: DbData): DbData => ({
   categories: [...data.categories],
   transactions: [...data.transactions],
   budgets: [...data.budgets],
+  recurringPayments: [...data.recurringPayments],
   events: [...data.events]
 });
 
@@ -26,6 +27,7 @@ export class JsonStore {
         categories: parsed.categories?.length ? parsed.categories : emptyDb.categories,
         transactions: parsed.transactions ?? [],
         budgets: parsed.budgets ?? [],
+        recurringPayments: parsed.recurringPayments ?? [],
         events: parsed.events ?? []
       };
     } catch (error) {
@@ -71,4 +73,3 @@ export class JsonStore {
     await rename(tempFile, this.filePath);
   }
 }
-

@@ -1,7 +1,7 @@
 import { config } from "./config.js";
 import { JsonStore } from "./db.js";
 import { defaultCategories } from "./defaults.js";
-import type { Budget, Transaction } from "./types.js";
+import type { Budget, RecurringPayment, Transaction } from "./types.js";
 
 const month = new Date().toISOString().slice(0, 7);
 const isoForDay = (day: number) => `${month}-${String(day).padStart(2, "0")}T10:00:00.000Z`;
@@ -99,6 +99,23 @@ const budgets: Budget[] = [
   }
 ];
 
+const recurringPayments: RecurringPayment[] = [
+  {
+    id: id("recurring", 1),
+    type: "expense",
+    amount: 1200,
+    categoryId: "rent",
+    merchant: "Apartment rent",
+    intervalUnit: "month",
+    intervalEvery: 1,
+    nextRunAt: `${month}-28T10:00:00.000Z`,
+    lastRunAt: isoForDay(2),
+    isActive: true,
+    createdAt: isoForDay(2),
+    updatedAt: isoForDay(2)
+  }
+];
+
 const run = async () => {
   const store = new JsonStore(config.dataFile);
   await store.init();
@@ -106,6 +123,7 @@ const run = async () => {
     data.categories = defaultCategories;
     data.transactions = transactions;
     data.budgets = budgets;
+    data.recurringPayments = recurringPayments;
     data.events = [
       {
         id: id("event", 1),
@@ -116,11 +134,12 @@ const run = async () => {
     ];
   });
 
-  console.log(`Seeded ${transactions.length} transactions and ${budgets.length} budgets for ${month}`);
+  console.log(
+    `Seeded ${transactions.length} transactions, ${budgets.length} budgets, and ${recurringPayments.length} recurring payments for ${month}`
+  );
 };
 
 run().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

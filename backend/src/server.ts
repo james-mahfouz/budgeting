@@ -9,6 +9,8 @@ import { config } from "./config.js";
 import { JsonStore } from "./db.js";
 import {
   analyticsQuerySchema,
+  createCategorySchema,
+  createRecurringPaymentSchema,
   createTransactionSchema,
   eventSchema,
   transactionQuerySchema,
@@ -16,7 +18,15 @@ import {
 } from "./validation.js";
 import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
 import { currentMonth } from "./services/date.js";
-import type { Budget, Transaction } from "./types.js";
+import { addInterval, hasDueRecurringPayments, processDueRecurringPayments } from "./services/recurring.js";
+import type { Budget, Category, RecurringPayment, Transaction } from "./types.js";
+
+const slugify = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
 const parseOrReply = <T>(
   result: { success: true; data: T } | { success: false; error: ZodError },
@@ -48,6 +58,17 @@ export const buildServer = async (store: JsonStore) => {
   await app.register(cors, { origin: config.corsOrigin === "*" ? true : config.corsOrigin });
   await app.register(rateLimit, { max: 240, timeWindow: "1 minute" });
 
+  const syncDueRecurringPayments = async () => {
+    const snapshot = store.snapshot;
+    if (!hasDueRecurringPayments(snapshot)) {
+      return;
+    }
+
+    await store.update((data) => {
+      processDueRecurringPayments(data);
+    });
+  };
+
   app.get("/health", async () => ({
     ok: true,
     service: "budgeting-backend",
@@ -58,7 +79,48 @@ export const buildServer = async (store: JsonStore) => {
     categories: store.snapshot.categories
   }));
 
+  app.post("/api/categories", async (request, reply) => {
+    const input = parseOrReply(createCategorySchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const baseId = slugify(input.name) || "category";
+    let category: Category | undefined;
+
+    await store.update((data) => {
+      const existingName = data.categories.find(
+        (item) => item.kind === input.kind && item.name.toLowerCase() === input.name.toLowerCase()
+      );
+
+      if (existingName) {
+        category = existingName;
+        return;
+      }
+
+      const id = data.categories.some((item) => item.id === baseId) ? `${baseId}-${randomUUID().slice(0, 8)}` : baseId;
+      category = {
+        id,
+        name: input.name,
+        kind: input.kind,
+        color: input.color,
+        icon: input.icon
+      };
+      data.categories.push(category);
+      data.events.push({
+        id: randomUUID(),
+        name: "category_created",
+        payload: { categoryId: id, kind: input.kind },
+        createdAt: now
+      });
+    });
+
+    reply.code(201).send({ category });
+  });
+
   app.get("/api/transactions", async (request, reply) => {
+    await syncDueRecurringPayments();
     const query = parseOrReply(transactionQuerySchema.safeParse(request.query), reply);
     if (!query) {
       return;
@@ -113,6 +175,93 @@ export const buildServer = async (store: JsonStore) => {
     reply.code(201).send({ transaction });
   });
 
+  app.get("/api/recurring-payments", async () => {
+    await syncDueRecurringPayments();
+    return {
+      recurringPayments: store.snapshot.recurringPayments.sort((a, b) => a.nextRunAt.localeCompare(b.nextRunAt))
+    };
+  });
+
+  app.post("/api/recurring-payments", async (request, reply) => {
+    const input = parseOrReply(createRecurringPaymentSchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const db = store.snapshot;
+    const category = db.categories.find((item) => item.id === input.categoryId);
+
+    if (!category || category.kind !== input.type) {
+      reply.code(422).send({ error: "Category does not match the recurring payment type" });
+      return;
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const startAt = input.startAt ? new Date(input.startAt) : now;
+    const recurringPayment: RecurringPayment = {
+      id: randomUUID(),
+      type: input.type,
+      amount: input.amount,
+      categoryId: input.categoryId,
+      merchant: input.merchant,
+      note: input.note,
+      intervalUnit: input.intervalUnit,
+      intervalEvery: input.intervalEvery,
+      nextRunAt: input.addNow
+        ? addInterval(now, input.intervalUnit, input.intervalEvery).toISOString()
+        : startAt.toISOString(),
+      lastRunAt: input.addNow ? nowIso : undefined,
+      isActive: true,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    };
+
+    await store.update((data) => {
+      data.recurringPayments.push(recurringPayment);
+
+      if (input.addNow) {
+        data.transactions.push({
+          id: randomUUID(),
+          type: input.type,
+          amount: input.amount,
+          categoryId: input.categoryId,
+          merchant: input.merchant,
+          note: input.note,
+          occurredAt: nowIso,
+          createdAt: nowIso
+        });
+      }
+
+      data.events.push({
+        id: randomUUID(),
+        name: "recurring_payment_created",
+        payload: { recurringPaymentId: recurringPayment.id, addNow: input.addNow },
+        createdAt: nowIso
+      });
+    });
+
+    reply.code(201).send({ recurringPayment });
+  });
+
+  app.delete("/api/recurring-payments/:id", async (request, reply) => {
+    const id = (request.params as { id: string }).id;
+    let removed = false;
+
+    await store.update((data) => {
+      const next = data.recurringPayments.filter((rule) => rule.id !== id);
+      removed = next.length !== data.recurringPayments.length;
+      data.recurringPayments = next;
+    });
+
+    if (!removed) {
+      reply.code(404).send({ error: "Recurring payment not found" });
+      return;
+    }
+
+    reply.code(204).send();
+  });
+
   app.delete("/api/transactions/:id", async (request, reply) => {
     const id = (request.params as { id: string }).id;
     let removed = false;
@@ -132,6 +281,7 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.get("/api/budgets", async (request, reply) => {
+    await syncDueRecurringPayments();
     const query = parseOrReply(analyticsQuerySchema.safeParse(request.query), reply);
     if (!query) {
       return;
@@ -200,6 +350,7 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.get("/api/analytics/summary", async (request, reply) => {
+    await syncDueRecurringPayments();
     const query = parseOrReply(analyticsQuerySchema.safeParse(request.query), reply);
     if (!query) {
       return;
@@ -212,6 +363,7 @@ export const buildServer = async (store: JsonStore) => {
   });
 
   app.get("/api/analytics/categories", async (request, reply) => {
+    await syncDueRecurringPayments();
     const query = parseOrReply(analyticsQuerySchema.safeParse(request.query), reply);
     if (!query) {
       return;
@@ -223,9 +375,12 @@ export const buildServer = async (store: JsonStore) => {
     };
   });
 
-  app.get("/api/analytics/cash-flow", async () => ({
-    cashFlow: cashFlowTrend(store.snapshot.transactions)
-  }));
+  app.get("/api/analytics/cash-flow", async () => {
+    await syncDueRecurringPayments();
+    return {
+      cashFlow: cashFlowTrend(store.snapshot.transactions)
+    };
+  });
 
   app.post("/api/events", async (request, reply) => {
     const input = parseOrReply(eventSchema.safeParse(request.body), reply);

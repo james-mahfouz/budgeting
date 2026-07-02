@@ -17,6 +17,6 @@ export const emptyDb: DbData = {
   categories: defaultCategories,
   transactions: [],
   budgets: [],
+  recurringPayments: [],
   events: []
 };
-

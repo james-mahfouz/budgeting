@@ -1,4 +1,5 @@
 export type TransactionType = "income" | "expense";
+export type RecurringIntervalUnit = "day" | "week" | "month";
 
 export type Category = {
   id: string;
@@ -28,6 +29,22 @@ export type Budget = {
   remaining: number;
   usage: number;
   category?: Category;
+};
+
+export type RecurringPayment = {
+  id: string;
+  type: TransactionType;
+  amount: number;
+  categoryId: string;
+  merchant: string;
+  note?: string;
+  intervalUnit: RecurringIntervalUnit;
+  intervalEvery: number;
+  nextRunAt: string;
+  lastRunAt?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type DashboardSummary = {
@@ -67,3 +84,20 @@ export type CreateTransactionInput = {
   occurredAt?: string;
 };
 
+export type CreateCategoryInput = {
+  name: string;
+  kind: TransactionType;
+  color: string;
+  icon: string;
+};
+
+export type CreateRecurringPaymentInput = {
+  type: TransactionType;
+  amount: number;
+  categoryId: string;
+  merchant: string;
+  note?: string;
+  intervalUnit: RecurringIntervalUnit;
+  intervalEvery: number;
+  addNow: boolean;
+};

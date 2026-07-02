@@ -16,40 +16,50 @@ import {
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
-import { useBudgetStore } from "../store/useBudgetStore";
 import { colors, radii, spacing, text } from "../theme";
-import type { Category, TransactionType } from "../types";
+import type { Category, RecurringIntervalUnit, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
 
-type AddTransactionModalProps = {
+type AddRecurringPaymentModalProps = {
   visible: boolean;
   onClose: () => void;
 };
 
-const typeOptions: Array<{ label: string; value: TransactionType; icon: keyof typeof Ionicons.glyphMap }> = [
-  { label: "Expense", value: "expense", icon: "arrow-up-circle" },
-  { label: "Income", value: "income", icon: "arrow-down-circle" }
-];
+type Preset = {
+  label: string;
+  value: string;
+  unit: RecurringIntervalUnit;
+  every: number;
+};
 
-export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalProps) => {
+const presets: Preset[] = [
+  { label: "Monthly", value: "monthly", unit: "month", every: 1 },
+  { label: "Weekly", value: "weekly", unit: "week", every: 1 },
+  { label: "2 weeks", value: "biweekly", unit: "week", every: 2 },
+  { label: "Custom", value: "custom", unit: "day", every: 30 }
+];
+const defaultPreset = presets[0] as Preset;
+
+export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPaymentModalProps) => {
   const queryClient = useQueryClient();
-  const openCategoryModal = useBudgetStore((state) => state.openCategoryModal);
+  const month = currentMonth();
   const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState("");
   const [merchant, setMerchant] = useState("");
   const [note, setNote] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const month = currentMonth();
+  const [preset, setPreset] = useState("monthly");
+  const [customDays, setCustomDays] = useState("30");
+  const [addNow, setAddNow] = useState(true);
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
     queryFn: api.categories
   });
 
-  const categories = categoriesQuery.data?.categories ?? [];
   const filteredCategories = useMemo(
-    () => categories.filter((category) => category.kind === type),
-    [categories, type]
+    () => (categoriesQuery.data?.categories ?? []).filter((category) => category.kind === type),
+    [categoriesQuery.data?.categories, type]
   );
 
   useEffect(() => {
@@ -59,24 +69,23 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
     }
   }, [categoryId, filteredCategories]);
 
-  useEffect(() => {
-    if (visible) {
-      trackEvent("add_transaction_opened", { source: "modal" });
-    }
-  }, [visible]);
-
-  const resetForm = () => {
+  const reset = () => {
     setType("expense");
     setAmount("");
     setMerchant("");
     setNote("");
     setCategoryId(null);
+    setPreset("monthly");
+    setCustomDays("30");
+    setAddNow(true);
   };
 
   const mutation = useMutation({
-    mutationFn: api.createTransaction,
+    mutationFn: api.createRecurringPayment,
     onSuccess: async () => {
+      trackEvent("recurring_payment_created_from_app", { type, preset });
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments }),
         queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
         queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
@@ -84,18 +93,13 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
         queryClient.invalidateQueries({ queryKey: queryKeys.cashFlow })
       ]);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      resetForm();
+      reset();
       onClose();
     },
     onError: (error) => {
-      Alert.alert("Could not save transaction", error instanceof Error ? error.message : "Try again.");
+      Alert.alert("Could not save recurring payment", error instanceof Error ? error.message : "Try again.");
     }
   });
-
-  const close = () => {
-    trackEvent("add_transaction_closed");
-    onClose();
-  };
 
   const submit = () => {
     const parsedAmount = Number(amount);
@@ -114,44 +118,57 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
       return;
     }
 
+    const selectedPreset = presets.find((item) => item.value === preset) ?? defaultPreset;
+    const customEvery = Number(customDays);
+    const intervalUnit = preset === "custom" ? "day" : selectedPreset.unit;
+    const intervalEvery = preset === "custom" ? customEvery : selectedPreset.every;
+
+    if (!Number.isInteger(intervalEvery) || intervalEvery <= 0) {
+      Alert.alert("Timing needed", "Enter a positive number of days.");
+      return;
+    }
+
     mutation.mutate({
       type,
       amount: parsedAmount,
       categoryId,
       merchant: merchant.trim(),
       note: note.trim() || undefined,
-      occurredAt: new Date().toISOString()
+      intervalUnit,
+      intervalEvery,
+      addNow
     });
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
-        <Pressable style={styles.scrim} onPress={close} />
+        <Pressable style={styles.scrim} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <View>
-              <Text style={styles.title}>Add transaction</Text>
-              <Text style={styles.subtitle}>Track it now, tune the budget later.</Text>
+              <Text style={styles.title}>Recurring payment</Text>
+              <Text style={styles.subtitle}>Automate bills, subscriptions, and income.</Text>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={styles.closeButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.ink} />
             </Pressable>
           </View>
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.segment}>
-              {typeOptions.map((option) => {
-                const selected = option.value === type;
+              {(["expense", "income"] as TransactionType[]).map((value) => {
+                const selected = type === value;
                 return (
                   <Pressable
-                    key={option.value}
-                    onPress={() => setType(option.value)}
+                    key={value}
+                    onPress={() => setType(value)}
                     style={[styles.segmentButton, selected && styles.segmentButtonActive]}
                   >
-                    <Ionicons name={option.icon} size={18} color={selected ? colors.surface : colors.ink} />
-                    <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>{option.label}</Text>
+                    <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>
+                      {value === "expense" ? "Expense" : "Income"}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -171,7 +188,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
             <TextInput
               value={merchant}
               onChangeText={setMerchant}
-              placeholder={type === "income" ? "Paycheck" : "Grocery store"}
+              placeholder={type === "income" ? "Salary" : "Netflix"}
               style={styles.input}
               placeholderTextColor={colors.muted}
             />
@@ -181,15 +198,6 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
               <ActivityIndicator color={colors.primary} style={styles.loader} />
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
-                <Pressable
-                  onPress={openCategoryModal}
-                  style={[styles.categoryChip, styles.addCategoryChip]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add category"
-                >
-                  <Ionicons name="add" size={16} color={colors.primary} />
-                  <Text style={[styles.categoryText, styles.addCategoryText]}>New</Text>
-                </Pressable>
                 {filteredCategories.map((category: Category) => {
                   const selected = category.id === categoryId;
                   return (
@@ -213,6 +221,46 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
               </ScrollView>
             )}
 
+            <Text style={styles.label}>Repeats</Text>
+            <View style={styles.presetGrid}>
+              {presets.map((item) => {
+                const selected = preset === item.value;
+                return (
+                  <Pressable
+                    key={item.value}
+                    onPress={() => setPreset(item.value)}
+                    style={[styles.presetButton, selected && styles.presetButtonActive]}
+                  >
+                    <Text style={[styles.presetText, selected && styles.presetTextActive]}>{item.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {preset === "custom" ? (
+              <>
+                <Text style={styles.label}>Every custom days</Text>
+                <TextInput
+                  value={customDays}
+                  onChangeText={setCustomDays}
+                  placeholder="30"
+                  keyboardType="number-pad"
+                  style={styles.input}
+                  placeholderTextColor={colors.muted}
+                />
+              </>
+            ) : null}
+
+            <Pressable onPress={() => setAddNow((value) => !value)} style={styles.checkRow}>
+              <View style={[styles.checkbox, addNow && styles.checkboxActive]}>
+                {addNow ? <Ionicons name="checkmark" size={16} color={colors.surface} /> : null}
+              </View>
+              <View style={styles.checkCopy}>
+                <Text style={styles.checkTitle}>Add first payment now</Text>
+                <Text style={styles.checkMeta}>The next one follows the timing above.</Text>
+              </View>
+            </Pressable>
+
             <Text style={styles.label}>Note</Text>
             <TextInput
               value={note}
@@ -233,8 +281,8 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
                 <ActivityIndicator color={colors.surface} />
               ) : (
                 <>
-                  <Ionicons name="checkmark-circle" size={20} color={colors.surface} />
-                  <Text style={styles.submitText}>Save transaction</Text>
+                  <Ionicons name="repeat" size={20} color={colors.surface} />
+                  <Text style={styles.submitText}>Save recurring payment</Text>
                 </>
               )}
             </Pressable>
@@ -310,10 +358,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     borderRadius: radii.sm,
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm
+    justifyContent: "center"
   },
   segmentButtonActive: {
     backgroundColor: colors.primary
@@ -352,11 +398,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     fontSize: 16
   },
-  noteInput: {
-    minHeight: 86,
-    paddingTop: spacing.md,
-    textAlignVertical: "top"
-  },
   loader: {
     paddingVertical: spacing.lg
   },
@@ -375,16 +416,75 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm
   },
-  addCategoryChip: {
-    borderColor: colors.primary,
-    backgroundColor: "#E6FFFA"
-  },
   categoryText: {
     color: colors.ink,
     fontWeight: "800"
   },
-  addCategoryText: {
+  presetGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm
+  },
+  presetButton: {
+    minHeight: 42,
+    minWidth: "47%",
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md
+  },
+  presetButtonActive: {
+    borderColor: colors.primary,
+    backgroundColor: "#E6FFFA"
+  },
+  presetText: {
+    color: colors.ink,
+    fontWeight: "800"
+  },
+  presetTextActive: {
     color: colors.primaryDark
+  },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.background
+  },
+  checkbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  checkboxActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  checkCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  checkTitle: {
+    ...text.body,
+    fontWeight: "900"
+  },
+  checkMeta: {
+    ...text.muted,
+    marginTop: 2
+  },
+  noteInput: {
+    minHeight: 82,
+    paddingTop: spacing.md,
+    textAlignVertical: "top"
   },
   submit: {
     minHeight: 54,
