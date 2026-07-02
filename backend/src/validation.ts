@@ -20,6 +20,8 @@ export const createCategorySchema = z.object({
   icon: z.string().trim().min(1).max(40).default("pricetag")
 });
 
+export const updateCategorySchema = createCategorySchema;
+
 export const createRecurringPaymentSchema = z.object({
   type: z.enum(["income", "expense"]),
   amount: z.coerce.number().positive().max(100_000_000_000),
@@ -30,6 +32,7 @@ export const createRecurringPaymentSchema = z.object({
   note: z.string().trim().max(240).optional(),
   intervalUnit: z.enum(["day", "week", "month"]),
   intervalEvery: z.coerce.number().int().positive().max(36),
+  scheduleDay: z.coerce.number().int().min(0).max(31).optional(),
   startAt: z.string().datetime().optional(),
   addNow: z.boolean().default(true)
 });

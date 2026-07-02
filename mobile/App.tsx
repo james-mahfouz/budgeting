@@ -9,7 +9,7 @@ import { AddRecurringPaymentModal } from "./src/components/AddRecurringPaymentMo
 import { AddTransactionModal } from "./src/components/AddTransactionModal";
 import { BottomTabs } from "./src/navigation/BottomTabs";
 import { useBudgetStore } from "./src/store/useBudgetStore";
-import { trackEvent } from "./src/api/client";
+import { api, queryKeys, trackEvent } from "./src/api/client";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +33,7 @@ const AppContent = () => {
     if (Platform.OS === "android") {
       NativeStatusBar.setBackgroundColor("#F7FAFC");
     }
+    void queryClient.prefetchQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
     trackEvent("app_open", { platform: "android-first" });
     const timer = setTimeout(openAddModal, 350);
     return () => clearTimeout(timer);

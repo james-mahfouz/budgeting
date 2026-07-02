@@ -47,6 +47,7 @@ export type RecurringPayment = {
   note?: string;
   intervalUnit: RecurringIntervalUnit;
   intervalEvery: number;
+  scheduleDay?: number;
   nextRunAt: string;
   lastRunAt?: string;
   isActive: boolean;
@@ -100,6 +101,8 @@ export type CreateCategoryInput = {
   icon: string;
 };
 
+export type UpdateCategoryInput = CreateCategoryInput;
+
 export type CreateRecurringPaymentInput = {
   type: TransactionType;
   amount: number;
@@ -110,5 +113,6 @@ export type CreateRecurringPaymentInput = {
   note?: string;
   intervalUnit: RecurringIntervalUnit;
   intervalEvery: number;
+  scheduleDay?: number;
   addNow: boolean;
 };

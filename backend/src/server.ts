@@ -14,12 +14,13 @@ import {
   createTransactionSchema,
   eventSchema,
   transactionQuerySchema,
+  updateCategorySchema,
   upsertBudgetSchema
 } from "./validation.js";
 import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
 import { normalizeMoney } from "./services/currency.js";
 import { currentMonth } from "./services/date.js";
-import { addInterval, hasDueRecurringPayments, processDueRecurringPayments } from "./services/recurring.js";
+import { addInterval, hasDueRecurringPayments, nextScheduledRun, processDueRecurringPayments } from "./services/recurring.js";
 import type { Budget, Category, RecurringPayment, Transaction } from "./types.js";
 
 const slugify = (value: string) =>
@@ -120,6 +121,79 @@ export const buildServer = async (store: JsonStore) => {
     reply.code(201).send({ category });
   });
 
+  app.put("/api/categories/:id", async (request, reply) => {
+    const id = (request.params as { id: string }).id;
+    const input = parseOrReply(updateCategorySchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let category: Category | undefined;
+
+    await store.update((data) => {
+      category = data.categories.find((item) => item.id === id);
+      if (!category) {
+        return;
+      }
+
+      category.name = input.name;
+      category.kind = input.kind;
+      category.color = input.color;
+      category.icon = input.icon;
+
+      if (input.kind !== "expense") {
+        data.budgets = data.budgets.filter((budget) => budget.categoryId !== id);
+      }
+
+      data.events.push({
+        id: randomUUID(),
+        name: "category_updated",
+        payload: { categoryId: id, kind: input.kind },
+        createdAt: now
+      });
+    });
+
+    if (!category) {
+      reply.code(404).send({ error: "Category not found" });
+      return;
+    }
+
+    reply.send({ category });
+  });
+
+  app.delete("/api/categories/:id", async (request, reply) => {
+    const id = (request.params as { id: string }).id;
+    const now = new Date().toISOString();
+    let removed = false;
+
+    await store.update((data) => {
+      const nextCategories = data.categories.filter((category) => category.id !== id);
+      removed = nextCategories.length !== data.categories.length;
+
+      if (!removed) {
+        return;
+      }
+
+      data.categories = nextCategories;
+      data.budgets = data.budgets.filter((budget) => budget.categoryId !== id);
+      data.recurringPayments = data.recurringPayments.filter((rule) => rule.categoryId !== id);
+      data.events.push({
+        id: randomUUID(),
+        name: "category_deleted",
+        payload: { categoryId: id },
+        createdAt: now
+      });
+    });
+
+    if (!removed) {
+      reply.code(404).send({ error: "Category not found" });
+      return;
+    }
+
+    reply.code(204).send();
+  });
+
   app.get("/api/transactions", async (request, reply) => {
     await syncDueRecurringPayments();
     const query = parseOrReply(transactionQuerySchema.safeParse(request.query), reply);
@@ -206,9 +280,24 @@ export const buildServer = async (store: JsonStore) => {
       return;
     }
 
+    if (input.intervalUnit === "month" && (!input.scheduleDay || input.scheduleDay < 1 || input.scheduleDay > 31)) {
+      reply.code(422).send({ error: "Monthly recurring payments need a day from 1 to 31" });
+      return;
+    }
+
+    if (input.intervalUnit === "week" && (input.scheduleDay === undefined || input.scheduleDay < 0 || input.scheduleDay > 6)) {
+      reply.code(422).send({ error: "Weekly recurring payments need a weekday" });
+      return;
+    }
+
     const now = new Date();
     const nowIso = now.toISOString();
-    const startAt = input.startAt ? new Date(input.startAt) : now;
+    const scheduledStartAt =
+      input.intervalUnit === "month" || input.intervalUnit === "week"
+        ? nextScheduledRun(now, input.intervalUnit, input.intervalEvery, input.scheduleDay)
+        : input.startAt
+          ? new Date(input.startAt)
+          : addInterval(now, input.intervalUnit, input.intervalEvery);
     const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
     const recurringPayment: RecurringPayment = {
       id: randomUUID(),
@@ -222,9 +311,8 @@ export const buildServer = async (store: JsonStore) => {
       note: input.note,
       intervalUnit: input.intervalUnit,
       intervalEvery: input.intervalEvery,
-      nextRunAt: input.addNow
-        ? addInterval(now, input.intervalUnit, input.intervalEvery).toISOString()
-        : startAt.toISOString(),
+      scheduleDay: input.scheduleDay,
+      nextRunAt: scheduledStartAt.toISOString(),
       lastRunAt: input.addNow ? nowIso : undefined,
       isActive: true,
       createdAt: nowIso,

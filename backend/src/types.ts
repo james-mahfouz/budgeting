@@ -46,6 +46,7 @@ export type RecurringPayment = {
   note?: string;
   intervalUnit: RecurringIntervalUnit;
   intervalEvery: number;
+  scheduleDay?: number;
   nextRunAt: string;
   lastRunAt?: string;
   isActive: boolean;

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
+import { useBudgetStore } from "../store/useBudgetStore";
 import { colors, radii, spacing, text } from "../theme";
 import type { TransactionType } from "../types";
 
@@ -41,10 +42,28 @@ const iconOptions: Array<keyof typeof Ionicons.glyphMap> = [
 
 export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) => {
   const queryClient = useQueryClient();
+  const editingCategory = useBudgetStore((state) => state.editingCategory);
   const [kind, setKind] = useState<TransactionType>("expense");
   const [name, setName] = useState("");
   const [color, setColor] = useState(defaultColor);
   const [icon, setIcon] = useState<keyof typeof Ionicons.glyphMap>("pricetag");
+  const isEditing = Boolean(editingCategory);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    if (editingCategory) {
+      setKind(editingCategory.kind);
+      setName(editingCategory.name);
+      setColor(editingCategory.color);
+      setIcon((editingCategory.icon as keyof typeof Ionicons.glyphMap) || "pricetag");
+      return;
+    }
+
+    reset();
+  }, [editingCategory, visible]);
 
   const reset = () => {
     setKind("expense");
@@ -54,10 +73,16 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
   };
 
   const mutation = useMutation({
-    mutationFn: api.createCategory,
+    mutationFn: () => {
+      const input = { name: name.trim(), kind, color, icon };
+      return editingCategory ? api.updateCategory(editingCategory.id, input) : api.createCategory(input);
+    },
     onSuccess: async () => {
-      trackEvent("category_created_from_app", { kind });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.categories });
+      trackEvent(isEditing ? "category_updated_from_app" : "category_created_from_app", { kind });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments })
+      ]);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       reset();
       onClose();
@@ -73,7 +98,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
       return;
     }
 
-    mutation.mutate({ name: name.trim(), kind, color, icon });
+    mutation.mutate();
   };
 
   return (
@@ -84,8 +109,8 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
           <View style={styles.handle} />
           <View style={styles.header}>
             <View>
-              <Text style={styles.title}>Add category</Text>
-              <Text style={styles.subtitle}>Create it once, use it everywhere.</Text>
+              <Text style={styles.title}>{isEditing ? "Edit category" : "Add category"}</Text>
+              <Text style={styles.subtitle}>{isEditing ? "Rename it or change how it appears." : "Create it once, use it everywhere."}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.ink} />
@@ -161,7 +186,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color={colors.surface} />
-                  <Text style={styles.submitText}>Save category</Text>
+                  <Text style={styles.submitText}>{isEditing ? "Update category" : "Save category"}</Text>
                 </>
               )}
             </Pressable>

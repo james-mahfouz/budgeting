@@ -9,14 +9,15 @@ import type {
   CreateTransactionInput,
   DashboardSummary,
   RecurringPayment,
-  Transaction
+  Transaction,
+  UpdateCategoryInput
 } from "../types";
 
 export const API_URL =
   process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000");
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
 };
 
@@ -52,6 +53,9 @@ export const api = {
   categories: () => request<{ categories: Category[] }>("/api/categories"),
   createCategory: (input: CreateCategoryInput) =>
     request<{ category: Category }>("/api/categories", { method: "POST", body: input }),
+  updateCategory: (id: string, input: UpdateCategoryInput) =>
+    request<{ category: Category }>(`/api/categories/${id}`, { method: "PUT", body: input }),
+  deleteCategory: (id: string) => request<void>(`/api/categories/${id}`, { method: "DELETE" }),
   transactions: (limit = 50) => request<{ transactions: Transaction[] }>(`/api/transactions?limit=${limit}`),
   createTransaction: (input: CreateTransactionInput) =>
     request<{ transaction: Transaction }>("/api/transactions", { method: "POST", body: input }),

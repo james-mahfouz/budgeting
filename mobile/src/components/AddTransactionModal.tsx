@@ -51,10 +51,22 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   const categories = categoriesQuery.data?.categories ?? [];
   const parsedAmount = amountInputToNumber(amount);
   const usdEstimate = amountToUsd(Number.isFinite(parsedAmount) ? parsedAmount : 0, currency, LBP_PER_USD);
-  const filteredCategories = useMemo(
-    () => categories.filter((category) => category.kind === type),
-    [categories, type]
+  const categoriesByType = useMemo(
+    () => ({
+      expense: categories.filter((category) => category.kind === "expense"),
+      income: categories.filter((category) => category.kind === "income")
+    }),
+    [categories]
   );
+  const filteredCategories = useMemo(
+    () => categoriesByType[type],
+    [categoriesByType, type]
+  );
+
+  const changeType = (nextType: TransactionType) => {
+    setType(nextType);
+    setCategoryId(categoriesByType[nextType][0]?.id ?? null);
+  };
 
   useEffect(() => {
     const stillValid = filteredCategories.some((category) => category.id === categoryId);
@@ -154,7 +166,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
                 return (
                   <Pressable
                     key={option.value}
-                    onPress={() => setType(option.value)}
+                    onPress={() => changeType(option.value)}
                     style={[styles.segmentButton, selected && styles.segmentButtonActive]}
                   >
                     <Ionicons name={option.icon} size={18} color={selected ? colors.surface : colors.ink} />

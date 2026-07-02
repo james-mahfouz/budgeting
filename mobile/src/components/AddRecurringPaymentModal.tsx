@@ -17,7 +17,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
 import { colors, radii, spacing, text } from "../theme";
-import type { Category, Currency, RecurringIntervalUnit, TransactionType } from "../types";
+import type { Category, Currency, RecurringPayment, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
 import { LBP_PER_USD, amountInputToNumber, amountToUsd, money } from "../utils/money";
 
@@ -26,20 +26,17 @@ type AddRecurringPaymentModalProps = {
   onClose: () => void;
 };
 
-type Preset = {
-  label: string;
-  value: string;
-  unit: RecurringIntervalUnit;
-  every: number;
-};
+type RepeatMode = "month" | "week";
 
-const presets: Preset[] = [
-  { label: "Monthly", value: "monthly", unit: "month", every: 1 },
-  { label: "Weekly", value: "weekly", unit: "week", every: 1 },
-  { label: "2 weeks", value: "biweekly", unit: "week", every: 2 },
-  { label: "Custom", value: "custom", unit: "day", every: 30 }
+const weekDays = [
+  { label: "Sun", value: 0 },
+  { label: "Mon", value: 1 },
+  { label: "Tue", value: 2 },
+  { label: "Wed", value: 3 },
+  { label: "Thu", value: 4 },
+  { label: "Fri", value: 5 },
+  { label: "Sat", value: 6 }
 ];
-const defaultPreset = presets[0] as Preset;
 
 export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPaymentModalProps) => {
   const queryClient = useQueryClient();
@@ -50,8 +47,9 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
   const [merchant, setMerchant] = useState("");
   const [note, setNote] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [preset, setPreset] = useState("monthly");
-  const [customDays, setCustomDays] = useState("30");
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>("month");
+  const [monthDay, setMonthDay] = useState(String(new Date().getDate()));
+  const [weekDay, setWeekDay] = useState(new Date().getDay());
   const [addNow, setAddNow] = useState(true);
 
   const categoriesQuery = useQuery({
@@ -63,8 +61,20 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
     () => (categoriesQuery.data?.categories ?? []).filter((category) => category.kind === type),
     [categoriesQuery.data?.categories, type]
   );
+  const categoriesByType = useMemo(() => {
+    const categories = categoriesQuery.data?.categories ?? [];
+    return {
+      expense: categories.filter((category) => category.kind === "expense"),
+      income: categories.filter((category) => category.kind === "income")
+    };
+  }, [categoriesQuery.data?.categories]);
   const parsedAmount = amountInputToNumber(amount);
   const usdEstimate = amountToUsd(Number.isFinite(parsedAmount) ? parsedAmount : 0, currency, LBP_PER_USD);
+
+  const changeType = (nextType: TransactionType) => {
+    setType(nextType);
+    setCategoryId(categoriesByType[nextType][0]?.id ?? null);
+  };
 
   useEffect(() => {
     const stillValid = filteredCategories.some((category) => category.id === categoryId);
@@ -80,17 +90,26 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
     setMerchant("");
     setNote("");
     setCategoryId(null);
-    setPreset("monthly");
-    setCustomDays("30");
+    setRepeatMode("month");
+    setMonthDay(String(new Date().getDate()));
+    setWeekDay(new Date().getDay());
     setAddNow(true);
   };
 
   const mutation = useMutation({
     mutationFn: api.createRecurringPayment,
-    onSuccess: async () => {
-      trackEvent("recurring_payment_created_from_app", { type, preset });
+    onSuccess: async ({ recurringPayment }) => {
+      trackEvent("recurring_payment_created_from_app", { type, repeatMode });
+      queryClient.setQueryData<{ recurringPayments: RecurringPayment[] }>(
+        queryKeys.recurringPayments,
+        (current) => ({
+          recurringPayments: [...(current?.recurringPayments ?? []), recurringPayment].sort((a, b) =>
+            a.nextRunAt.localeCompare(b.nextRunAt)
+          )
+        })
+      );
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments }),
+        queryClient.refetchQueries({ queryKey: queryKeys.recurringPayments, type: "active" }),
         queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
         queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
@@ -123,13 +142,11 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
       return;
     }
 
-    const selectedPreset = presets.find((item) => item.value === preset) ?? defaultPreset;
-    const customEvery = Number(customDays);
-    const intervalUnit = preset === "custom" ? "day" : selectedPreset.unit;
-    const intervalEvery = preset === "custom" ? customEvery : selectedPreset.every;
+    const selectedMonthDay = Number(monthDay);
+    const scheduleDay = repeatMode === "month" ? selectedMonthDay : weekDay;
 
-    if (!Number.isInteger(intervalEvery) || intervalEvery <= 0) {
-      Alert.alert("Timing needed", "Enter a positive number of days.");
+    if (repeatMode === "month" && (!Number.isInteger(selectedMonthDay) || selectedMonthDay < 1 || selectedMonthDay > 31)) {
+      Alert.alert("Day needed", "Enter a day from 1 to 31.");
       return;
     }
 
@@ -141,8 +158,9 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
       categoryId,
       merchant: merchant.trim(),
       note: note.trim() || undefined,
-      intervalUnit,
-      intervalEvery,
+      intervalUnit: repeatMode,
+      intervalEvery: 1,
+      scheduleDay,
       addNow
     });
   };
@@ -170,7 +188,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
                 return (
                   <Pressable
                     key={value}
-                    onPress={() => setType(value)}
+                    onPress={() => changeType(value)}
                     style={[styles.segmentButton, selected && styles.segmentButtonActive]}
                   >
                     <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>
@@ -246,34 +264,56 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
             )}
 
             <Text style={styles.label}>Repeats</Text>
-            <View style={styles.presetGrid}>
-              {presets.map((item) => {
-                const selected = preset === item.value;
+            <View style={styles.segment}>
+              {([
+                { label: "Monthly", value: "month" },
+                { label: "Weekly", value: "week" }
+              ] as Array<{ label: string; value: RepeatMode }>).map((item) => {
+                const selected = repeatMode === item.value;
                 return (
                   <Pressable
                     key={item.value}
-                    onPress={() => setPreset(item.value)}
-                    style={[styles.presetButton, selected && styles.presetButtonActive]}
+                    onPress={() => setRepeatMode(item.value)}
+                    style={[styles.segmentButton, selected && styles.segmentButtonActive]}
                   >
-                    <Text style={[styles.presetText, selected && styles.presetTextActive]}>{item.label}</Text>
+                    <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>{item.label}</Text>
                   </Pressable>
                 );
               })}
             </View>
 
-            {preset === "custom" ? (
+            {repeatMode === "month" ? (
               <>
-                <Text style={styles.label}>Every custom days</Text>
+                <Text style={styles.label}>Day of month</Text>
                 <TextInput
-                  value={customDays}
-                  onChangeText={setCustomDays}
-                  placeholder="30"
+                  value={monthDay}
+                  onChangeText={setMonthDay}
+                  placeholder="1"
                   keyboardType="number-pad"
                   style={styles.input}
                   placeholderTextColor={colors.muted}
                 />
+                <Text style={styles.scheduleHint}>If the month is shorter, it runs on the last day.</Text>
               </>
-            ) : null}
+            ) : (
+              <>
+                <Text style={styles.label}>Day of week</Text>
+                <View style={styles.weekGrid}>
+                  {weekDays.map((day) => {
+                    const selected = weekDay === day.value;
+                    return (
+                      <Pressable
+                        key={day.value}
+                        onPress={() => setWeekDay(day.value)}
+                        style={[styles.weekButton, selected && styles.weekButtonActive]}
+                      >
+                        <Text style={[styles.weekText, selected && styles.weekTextActive]}>{day.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
             <Pressable onPress={() => setAddNow((value) => !value)} style={styles.checkRow}>
               <View style={[styles.checkbox, addNow && styles.checkboxActive]}>
@@ -475,14 +515,19 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontWeight: "800"
   },
-  presetGrid: {
+  scheduleHint: {
+    ...text.muted,
+    marginTop: spacing.sm,
+    lineHeight: 18
+  },
+  weekGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm
   },
-  presetButton: {
+  weekButton: {
     minHeight: 42,
-    minWidth: "47%",
+    minWidth: 70,
     borderRadius: 21,
     borderWidth: 1,
     borderColor: colors.border,
@@ -491,15 +536,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.md
   },
-  presetButtonActive: {
+  weekButtonActive: {
     borderColor: colors.primary,
     backgroundColor: "#E6FFFA"
   },
-  presetText: {
+  weekText: {
     color: colors.ink,
     fontWeight: "800"
   },
-  presetTextActive: {
+  weekTextActive: {
     color: colors.primaryDark
   },
   checkRow: {
