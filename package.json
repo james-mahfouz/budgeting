@@ -1,0 +1,22 @@
+{
+  "name": "budgeting",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A simple full-stack budgeting app with a TypeScript backend and Expo React Native Android app.",
+  "workspaces": [
+    "backend",
+    "mobile"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace backend",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:android": "npm run android --workspace mobile",
+    "build": "npm run build --workspace backend && npm run typecheck --workspace mobile",
+    "lint": "npm run lint --workspace backend && npm run lint --workspace mobile",
+    "seed": "npm run seed --workspace backend"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

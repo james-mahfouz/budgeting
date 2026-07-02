@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-alpine AS build
+
+WORKDIR /app/backend
+
+COPY backend/package*.json ./
+RUN npm ci
+
+COPY backend/tsconfig.json ./tsconfig.json
+COPY backend/src ./src
+RUN npm run build && npm prune --omit=dev
+
+FROM node:20-alpine AS runtime
+
+ENV NODE_ENV=production \
+    PORT=4000 \
+    HOST=0.0.0.0 \
+    DATA_FILE=/app/backend/data/budgeting.json \
+    LOG_LEVEL=info
+
+WORKDIR /app/backend
+
+RUN apk add --no-cache su-exec && \
+    addgroup -S budgeting && \
+    adduser -S budgeting -G budgeting && \
+    mkdir -p /app/backend/data && \
+    chown -R budgeting:budgeting /app/backend
+
+COPY --from=build --chown=budgeting:budgeting /app/backend/package*.json ./
+COPY --from=build --chown=budgeting:budgeting /app/backend/node_modules ./node_modules
+COPY --from=build --chown=budgeting:budgeting /app/backend/dist ./dist
+COPY docker/backend-entrypoint.sh /usr/local/bin/backend-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/backend-entrypoint.sh
+
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 4000) + '/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+ENTRYPOINT ["backend-entrypoint.sh"]
+CMD ["node", "dist/server.js"]
+

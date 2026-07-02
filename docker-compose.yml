@@ -1,0 +1,24 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: budgeting-backend:latest
+    container_name: budgeting-backend
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      HOST: "${HOST:-0.0.0.0}"
+      PORT: "${PORT:-4000}"
+      DATA_FILE: "${DATA_FILE:-/app/backend/data/budgeting.json}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      CORS_ORIGIN: "${CORS_ORIGIN:-*}"
+    ports:
+      - "${HOST_PORT:-4000}:${PORT:-4000}"
+    volumes:
+      - backend-data:/app/backend/data
+
+volumes:
+  backend-data:

@@ -1,0 +1,205 @@
+import { LinearGradient } from "expo-linear-gradient";
+import { useMemo } from "react";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useQuery } from "@tanstack/react-query";
+import { api, queryKeys } from "../api/client";
+import { BudgetProgress } from "../components/BudgetProgress";
+import { EmptyState } from "../components/EmptyState";
+import { Header } from "../components/Header";
+import { IconButton } from "../components/IconButton";
+import { Panel } from "../components/Panel";
+import { Screen } from "../components/Screen";
+import { StatCard } from "../components/StatCard";
+import { TransactionRow } from "../components/TransactionRow";
+import { useBudgetStore } from "../store/useBudgetStore";
+import { colors, radii, spacing, text } from "../theme";
+import { currentMonth, readableMonth } from "../utils/date";
+import { money } from "../utils/money";
+import { useScreenTracking } from "../utils/useScreenTracking";
+
+export const DashboardScreen = () => {
+  useScreenTracking("dashboard");
+  const openAddModal = useBudgetStore((state) => state.openAddModal);
+  const month = currentMonth();
+
+  const categoriesQuery = useQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
+  const summaryQuery = useQuery({ queryKey: queryKeys.summary(month), queryFn: () => api.summary(month) });
+  const transactionsQuery = useQuery({ queryKey: queryKeys.transactions, queryFn: () => api.transactions(5) });
+  const budgetsQuery = useQuery({ queryKey: queryKeys.budgets(month), queryFn: () => api.budgets(month) });
+  const spendQuery = useQuery({ queryKey: queryKeys.categorySpend(month), queryFn: () => api.categorySpend(month) });
+
+  const categoriesById = useMemo(() => {
+    return new Map((categoriesQuery.data?.categories ?? []).map((category) => [category.id, category]));
+  }, [categoriesQuery.data?.categories]);
+
+  const summary = summaryQuery.data?.summary;
+  const budgetProgress = summary?.budgetLimit ? Math.min((summary.budgetSpent / summary.budgetLimit) * 100, 100) : 0;
+  const refreshing =
+    summaryQuery.isRefetching || transactionsQuery.isRefetching || budgetsQuery.isRefetching || spendQuery.isRefetching;
+
+  const refresh = () => {
+    void Promise.all([
+      summaryQuery.refetch(),
+      transactionsQuery.refetch(),
+      budgetsQuery.refetch(),
+      spendQuery.refetch(),
+      categoriesQuery.refetch()
+    ]);
+  };
+
+  return (
+    <Screen>
+      <Header
+        title="Budgeting"
+        subtitle={readableMonth(month)}
+        action={<IconButton name="add" label="Add transaction" onPress={openAddModal} backgroundColor={colors.primary} color={colors.surface} />}
+      />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
+        {summaryQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} style={styles.loader} />
+        ) : (
+          <LinearGradient colors={["#0E9384", "#2563EB"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+            <Text style={styles.heroLabel}>Available this month</Text>
+            <Text style={styles.heroAmount} adjustsFontSizeToFit numberOfLines={1}>
+              {money(summary?.balance ?? 0)}
+            </Text>
+            <View style={styles.heroMetaRow}>
+              <Text style={styles.heroMeta}>Income {money(summary?.income ?? 0)}</Text>
+              <Text style={styles.heroMeta}>Spent {money(summary?.expenses ?? 0)}</Text>
+            </View>
+            <View style={styles.heroTrack}>
+              <View style={[styles.heroFill, { width: `${budgetProgress}%` }]} />
+            </View>
+          </LinearGradient>
+        )}
+
+        <View style={styles.statRow}>
+          <StatCard label="Savings rate" value={`${summary?.savingsRate ?? 0}%`} icon="trending-up" tone="income" />
+          <StatCard label="Transactions" value={`${summary?.transactionCount ?? 0}`} icon="receipt" tone="blue" />
+        </View>
+
+        <Panel title="Budget watch">
+          {(budgetsQuery.data?.budgets ?? []).length ? (
+            budgetsQuery.data?.budgets.slice(0, 4).map((budget) => (
+              <BudgetProgress
+                key={budget.id}
+                name={budget.category?.name ?? "Budget"}
+                color={budget.category?.color ?? colors.primary}
+                spent={budget.spent}
+                limit={budget.limit}
+              />
+            ))
+          ) : (
+            <EmptyState icon="speedometer" title="No budgets yet" body="Add a few category limits to see progress here." />
+          )}
+        </Panel>
+
+        <Panel title="Top spending">
+          {(spendQuery.data?.categories ?? []).length ? (
+            spendQuery.data?.categories.slice(0, 3).map((category) => (
+              <View key={category.categoryId} style={styles.spendRow}>
+                <View style={[styles.dot, { backgroundColor: category.color }]} />
+                <Text style={styles.spendName}>{category.name}</Text>
+                <Text style={styles.spendAmount}>{money(category.amount)}</Text>
+              </View>
+            ))
+          ) : (
+            <EmptyState icon="pie-chart" title="No spending yet" body="Expenses will appear here after you add transactions." />
+          )}
+        </Panel>
+
+        <Panel title="Recent transactions">
+          {(transactionsQuery.data?.transactions ?? []).length ? (
+            transactionsQuery.data?.transactions.map((transaction) => (
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                category={categoriesById.get(transaction.categoryId)}
+              />
+            ))
+          ) : (
+            <EmptyState icon="receipt" title="Nothing tracked" body="The launch popup is ready for your first transaction." />
+          )}
+        </Panel>
+      </ScrollView>
+    </Screen>
+  );
+};
+
+const styles = StyleSheet.create({
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 112,
+    gap: spacing.lg
+  },
+  loader: {
+    paddingVertical: spacing.xxl
+  },
+  hero: {
+    borderRadius: radii.lg,
+    padding: spacing.xl,
+    minHeight: 188,
+    justifyContent: "space-between"
+  },
+  heroLabel: {
+    color: "rgba(255,255,255,0.78)",
+    fontWeight: "800",
+    fontSize: 14
+  },
+  heroAmount: {
+    color: colors.surface,
+    fontWeight: "900",
+    fontSize: 42,
+    marginTop: spacing.sm
+  },
+  heroMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.lg
+  },
+  heroMeta: {
+    color: colors.surface,
+    fontWeight: "800"
+  },
+  heroTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.24)",
+    overflow: "hidden",
+    marginTop: spacing.lg
+  },
+  heroFill: {
+    height: "100%",
+    borderRadius: 4,
+    backgroundColor: colors.accent
+  },
+  statRow: {
+    flexDirection: "row",
+    gap: spacing.md
+  },
+  spendRow: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5
+  },
+  spendName: {
+    ...text.body,
+    flex: 1,
+    fontWeight: "700"
+  },
+  spendAmount: {
+    ...text.body,
+    fontWeight: "900"
+  }
+});
+

@@ -1,0 +1,126 @@
+import { config } from "./config.js";
+import { JsonStore } from "./db.js";
+import { defaultCategories } from "./defaults.js";
+import type { Budget, Transaction } from "./types.js";
+
+const month = new Date().toISOString().slice(0, 7);
+const isoForDay = (day: number) => `${month}-${String(day).padStart(2, "0")}T10:00:00.000Z`;
+const id = (prefix: string, index: number) => `${prefix}-${month}-${index}`;
+
+const transactions: Transaction[] = [
+  {
+    id: id("txn", 1),
+    type: "income",
+    amount: 4200,
+    categoryId: "salary",
+    merchant: "Paycheck",
+    occurredAt: isoForDay(1),
+    createdAt: isoForDay(1)
+  },
+  {
+    id: id("txn", 2),
+    type: "expense",
+    amount: 1200,
+    categoryId: "rent",
+    merchant: "Apartment rent",
+    occurredAt: isoForDay(2),
+    createdAt: isoForDay(2)
+  },
+  {
+    id: id("txn", 3),
+    type: "expense",
+    amount: 86.45,
+    categoryId: "groceries",
+    merchant: "Fresh Market",
+    occurredAt: isoForDay(4),
+    createdAt: isoForDay(4)
+  },
+  {
+    id: id("txn", 4),
+    type: "expense",
+    amount: 32.2,
+    categoryId: "dining",
+    merchant: "Lunch",
+    occurredAt: isoForDay(6),
+    createdAt: isoForDay(6)
+  },
+  {
+    id: id("txn", 5),
+    type: "expense",
+    amount: 44.9,
+    categoryId: "transport",
+    merchant: "Fuel",
+    occurredAt: isoForDay(8),
+    createdAt: isoForDay(8)
+  },
+  {
+    id: id("txn", 6),
+    type: "income",
+    amount: 350,
+    categoryId: "side-hustle",
+    merchant: "Freelance project",
+    occurredAt: isoForDay(10),
+    createdAt: isoForDay(10)
+  }
+];
+
+const budgets: Budget[] = [
+  {
+    id: id("budget", 1),
+    categoryId: "groceries",
+    month,
+    limit: 520,
+    createdAt: isoForDay(1),
+    updatedAt: isoForDay(1)
+  },
+  {
+    id: id("budget", 2),
+    categoryId: "dining",
+    month,
+    limit: 300,
+    createdAt: isoForDay(1),
+    updatedAt: isoForDay(1)
+  },
+  {
+    id: id("budget", 3),
+    categoryId: "transport",
+    month,
+    limit: 260,
+    createdAt: isoForDay(1),
+    updatedAt: isoForDay(1)
+  },
+  {
+    id: id("budget", 4),
+    categoryId: "shopping",
+    month,
+    limit: 250,
+    createdAt: isoForDay(1),
+    updatedAt: isoForDay(1)
+  }
+];
+
+const run = async () => {
+  const store = new JsonStore(config.dataFile);
+  await store.init();
+  await store.update((data) => {
+    data.categories = defaultCategories;
+    data.transactions = transactions;
+    data.budgets = budgets;
+    data.events = [
+      {
+        id: id("event", 1),
+        name: "seed_loaded",
+        payload: { month },
+        createdAt: new Date().toISOString()
+      }
+    ];
+  });
+
+  console.log(`Seeded ${transactions.length} transactions and ${budgets.length} budgets for ${month}`);
+};
+
+run().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+

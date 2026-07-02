@@ -1,0 +1,386 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from "react-native";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, queryKeys, trackEvent } from "../api/client";
+import { colors, radii, spacing, text } from "../theme";
+import type { Category, TransactionType } from "../types";
+import { currentMonth } from "../utils/date";
+
+type AddTransactionModalProps = {
+  visible: boolean;
+  onClose: () => void;
+};
+
+const typeOptions: Array<{ label: string; value: TransactionType; icon: keyof typeof Ionicons.glyphMap }> = [
+  { label: "Expense", value: "expense", icon: "arrow-up-circle" },
+  { label: "Income", value: "income", icon: "arrow-down-circle" }
+];
+
+export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalProps) => {
+  const queryClient = useQueryClient();
+  const [type, setType] = useState<TransactionType>("expense");
+  const [amount, setAmount] = useState("");
+  const [merchant, setMerchant] = useState("");
+  const [note, setNote] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const month = currentMonth();
+
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories,
+    queryFn: api.categories
+  });
+
+  const categories = categoriesQuery.data?.categories ?? [];
+  const filteredCategories = useMemo(
+    () => categories.filter((category) => category.kind === type),
+    [categories, type]
+  );
+
+  useEffect(() => {
+    const stillValid = filteredCategories.some((category) => category.id === categoryId);
+    if (!stillValid) {
+      setCategoryId(filteredCategories[0]?.id ?? null);
+    }
+  }, [categoryId, filteredCategories]);
+
+  useEffect(() => {
+    if (visible) {
+      trackEvent("add_transaction_opened", { source: "modal" });
+    }
+  }, [visible]);
+
+  const resetForm = () => {
+    setType("expense");
+    setAmount("");
+    setMerchant("");
+    setNote("");
+    setCategoryId(null);
+  };
+
+  const mutation = useMutation({
+    mutationFn: api.createTransaction,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.budgets(month) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(month) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.cashFlow })
+      ]);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      resetForm();
+      onClose();
+    },
+    onError: (error) => {
+      Alert.alert("Could not save transaction", error instanceof Error ? error.message : "Try again.");
+    }
+  });
+
+  const close = () => {
+    trackEvent("add_transaction_closed");
+    onClose();
+  };
+
+  const submit = () => {
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert("Amount needed", "Enter a positive amount.");
+      return;
+    }
+
+    if (!merchant.trim()) {
+      Alert.alert("Name needed", "Add a merchant or short description.");
+      return;
+    }
+
+    if (!categoryId) {
+      Alert.alert("Category needed", "Choose a category.");
+      return;
+    }
+
+    mutation.mutate({
+      type,
+      amount: parsedAmount,
+      categoryId,
+      merchant: merchant.trim(),
+      note: note.trim() || undefined,
+      occurredAt: new Date().toISOString()
+    });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+        <Pressable style={styles.scrim} onPress={close} />
+        <View style={styles.sheet}>
+          <View style={styles.handle} />
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>Add transaction</Text>
+              <Text style={styles.subtitle}>Track it now, tune the budget later.</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={styles.closeButton}>
+              <Ionicons name="close" size={22} color={colors.ink} />
+            </Pressable>
+          </View>
+
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={styles.segment}>
+              {typeOptions.map((option) => {
+                const selected = option.value === type;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setType(option.value)}
+                    style={[styles.segmentButton, selected && styles.segmentButtonActive]}
+                  >
+                    <Ionicons name={option.icon} size={18} color={selected ? colors.surface : colors.ink} />
+                    <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.label}>Amount</Text>
+            <TextInput
+              value={amount}
+              onChangeText={setAmount}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+              style={styles.amountInput}
+              placeholderTextColor={colors.muted}
+            />
+
+            <Text style={styles.label}>Merchant or source</Text>
+            <TextInput
+              value={merchant}
+              onChangeText={setMerchant}
+              placeholder={type === "income" ? "Paycheck" : "Grocery store"}
+              style={styles.input}
+              placeholderTextColor={colors.muted}
+            />
+
+            <Text style={styles.label}>Category</Text>
+            {categoriesQuery.isLoading ? (
+              <ActivityIndicator color={colors.primary} style={styles.loader} />
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
+                {filteredCategories.map((category: Category) => {
+                  const selected = category.id === categoryId;
+                  return (
+                    <Pressable
+                      key={category.id}
+                      onPress={() => setCategoryId(category.id)}
+                      style={[
+                        styles.categoryChip,
+                        selected && { borderColor: category.color, backgroundColor: `${category.color}16` }
+                      ]}
+                    >
+                      <Ionicons
+                        name={(category.icon as keyof typeof Ionicons.glyphMap) ?? "pricetag"}
+                        size={16}
+                        color={category.color}
+                      />
+                      <Text style={styles.categoryText}>{category.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            <Text style={styles.label}>Note</Text>
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="Optional"
+              style={[styles.input, styles.noteInput]}
+              placeholderTextColor={colors.muted}
+              multiline
+            />
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={submit}
+              disabled={mutation.isPending}
+              style={({ pressed }) => [styles.submit, { opacity: pressed || mutation.isPending ? 0.72 : 1 }]}
+            >
+              {mutation.isPending ? (
+                <ActivityIndicator color={colors.surface} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color={colors.surface} />
+                  <Text style={styles.submitText}>Save transaction</Text>
+                </>
+              )}
+            </Pressable>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: "flex-end"
+  },
+  scrim: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.36)"
+  },
+  sheet: {
+    maxHeight: "92%",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+    paddingTop: spacing.sm
+  },
+  handle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    alignSelf: "center",
+    marginBottom: spacing.lg
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.lg,
+    gap: spacing.md
+  },
+  title: {
+    ...text.h2,
+    fontSize: 22
+  },
+  subtitle: {
+    ...text.muted,
+    marginTop: 2
+  },
+  closeButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  segment: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radii.md,
+    padding: spacing.xs,
+    marginBottom: spacing.lg
+  },
+  segmentButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm
+  },
+  segmentButtonActive: {
+    backgroundColor: colors.primary
+  },
+  segmentText: {
+    color: colors.ink,
+    fontWeight: "800"
+  },
+  segmentTextActive: {
+    color: colors.surface
+  },
+  label: {
+    ...text.muted,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+    marginTop: spacing.md
+  },
+  amountInput: {
+    minHeight: 76,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    fontSize: 34,
+    fontWeight: "900",
+    color: colors.ink,
+    backgroundColor: colors.background
+  },
+  input: {
+    minHeight: 52,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    color: colors.ink,
+    backgroundColor: colors.background,
+    fontSize: 16
+  },
+  noteInput: {
+    minHeight: 86,
+    paddingTop: spacing.md,
+    textAlignVertical: "top"
+  },
+  loader: {
+    paddingVertical: spacing.lg
+  },
+  categoryList: {
+    gap: spacing.sm,
+    paddingRight: spacing.lg
+  },
+  categoryChip: {
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  categoryText: {
+    color: colors.ink,
+    fontWeight: "800"
+  },
+  submit: {
+    minHeight: 54,
+    borderRadius: radii.md,
+    marginTop: spacing.xl,
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm
+  },
+  submitText: {
+    color: colors.surface,
+    fontWeight: "900",
+    fontSize: 16
+  }
+});

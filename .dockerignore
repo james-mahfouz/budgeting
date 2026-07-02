@@ -1,0 +1,15 @@
+.git
+.DS_Store
+node_modules
+**/node_modules
+backend/data
+backend/dist
+backend/coverage
+mobile/.expo
+mobile/android
+mobile/ios
+mobile/web-build
+*.log
+.env
+.env.*
+
