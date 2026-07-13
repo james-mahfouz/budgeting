@@ -162,7 +162,7 @@ export const buildServer = async (store: JsonStore) => {
     });
 
     if (!created) {
-      reply.code(409).send({ error: "Username already exists" });
+      reply.code(409).send({ error: "Email already exists" });
       return;
     }
 
@@ -178,7 +178,7 @@ export const buildServer = async (store: JsonStore) => {
 
     const user = store.snapshot.users.find((item) => item.username === input.username);
     if (!user || !verifyPassword(input.password, user.passwordHash)) {
-      reply.code(401).send({ error: "Invalid username or password" });
+      reply.code(401).send({ error: "Invalid email or password" });
       return;
     }
 

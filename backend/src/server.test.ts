@@ -33,12 +33,12 @@ describe("auth protected API", () => {
     const registerA = await app.inject({
       method: "POST",
       url: "/api/auth/register",
-      payload: { name: "James", username: "james", password: "password123" }
+      payload: { name: "James", username: "james@example.com", password: "password123" }
     });
     const registerB = await app.inject({
       method: "POST",
       url: "/api/auth/register",
-      payload: { name: "Other", username: "other", password: "password123" }
+      payload: { name: "Other", username: "other@example.com", password: "password123" }
     });
     const authA = registerA.json<{ token: string }>();
     const authB = registerB.json<{ token: string }>();

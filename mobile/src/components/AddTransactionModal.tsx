@@ -144,7 +144,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.overlay}>
         <Pressable style={styles.scrim} onPress={close} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
@@ -158,7 +158,12 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
             </Pressable>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
             <View style={styles.segment}>
               {typeOptions.map((option) => {
                 const selected = option.value === type;
@@ -301,6 +306,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
     paddingTop: spacing.sm
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl
   },
   handle: {
     width: 44,

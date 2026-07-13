@@ -119,7 +119,7 @@ export const SettingsScreen = () => {
             <View style={styles.statusCopy}>
               <Text style={styles.statusTitle}>{user?.name ?? "Signed in"}</Text>
               <Text style={styles.statusMeta} numberOfLines={1}>
-                @{user?.username}
+                {user?.username}
               </Text>
             </View>
           </View>

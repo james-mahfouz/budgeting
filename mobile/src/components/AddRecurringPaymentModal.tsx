@@ -166,7 +166,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.overlay}>
         <Pressable style={styles.scrim} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
@@ -180,7 +180,12 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
             </Pressable>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
             <View style={styles.segment}>
               {(["expense", "income"] as TransactionType[]).map((value) => {
                 const selected = type === value;
@@ -377,6 +382,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
     paddingTop: spacing.sm
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl
   },
   handle: {
     width: 44,

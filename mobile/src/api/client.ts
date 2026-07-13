@@ -41,8 +41,23 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
     try {
-      const error = (await response.json()) as { error?: string };
-      message = error.error ?? message;
+      const error = (await response.json()) as {
+        error?: string;
+        details?: {
+          formErrors?: string[];
+          fieldErrors?: Record<string, string[]>;
+        };
+      };
+      const fieldErrors = error.details?.fieldErrors
+        ? Object.entries(error.details.fieldErrors)
+            .flatMap(([field, errors]) => {
+              const label = field === "username" ? "email" : field;
+              return errors.map((item) => `${label}: ${item.replaceAll("Username", "Email").replaceAll("username", "email")}`);
+            })
+            .join("\n")
+        : "";
+      const formErrors = error.details?.formErrors?.join("\n") ?? "";
+      message = fieldErrors || formErrors || error.error || message;
     } catch {
       // Keep the generic status message when the response is not JSON.
     }

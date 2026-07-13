@@ -13,7 +13,7 @@ const categoryId = (id: string) => `${id}-${userId.slice(0, 8)}`;
 const user: User = {
   id: userId,
   name: "Demo User",
-  username: "demo",
+  username: "demo@example.com",
   passwordHash: hashPassword("password123"),
   createdAt: isoForDay(1),
   updatedAt: isoForDay(1)

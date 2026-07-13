@@ -10,7 +10,8 @@
       "**/*"
     ],
     "android": {
-      "package": "com.budgeting.app"
+      "package": "com.budgeting.app",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "extra": {
       "apiUrl": "http://10.0.2.2:4000"

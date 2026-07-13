@@ -103,7 +103,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.overlay}>
         <Pressable style={styles.scrim} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
@@ -117,7 +117,12 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
             </Pressable>
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
             <View style={styles.segment}>
               {(["expense", "income"] as TransactionType[]).map((value) => {
                 const selected = kind === value;
@@ -218,6 +223,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
     paddingTop: spacing.sm
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxl
   },
   handle: {
     width: 44,

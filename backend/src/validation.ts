@@ -4,12 +4,12 @@ export const monthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Month must use YYY
 
 export const registerSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  username: z.string().trim().toLowerCase().min(3).max(40).regex(/^[a-z0-9._-]+$/, "Username can use letters, numbers, dots, underscores, and dashes"),
+  username: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
   password: z.string().min(8).max(128)
 });
 
 export const loginSchema = z.object({
-  username: z.string().trim().toLowerCase().min(1),
+  username: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
   password: z.string().min(1).max(128)
 });
 
