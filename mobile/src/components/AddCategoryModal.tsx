@@ -1,6 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { useEffect, useState } from "react";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,8 +16,9 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
 import { useAppStore } from "../store/useAppStore";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
 import type { TransactionType } from "../types";
+import { successFeedback } from "../utils/haptics";
 
 type AddCategoryModalProps = {
   visible: boolean;
@@ -62,6 +62,7 @@ const iconOptions: Array<keyof typeof Ionicons.glyphMap> = [
   "bag",
   "ticket",
   "wallet",
+  "swap-horizontal",
   "briefcase",
   "cash",
   "card",
@@ -112,8 +113,11 @@ const iconOptions: Array<keyof typeof Ionicons.glyphMap> = [
 ];
 
 export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   const queryClient = useQueryClient();
   const editingCategory = useAppStore((state) => state.editingCategory);
+  const preferredCategoryKind = useAppStore((state) => state.preferredCategoryKind);
   const [kind, setKind] = useState<TransactionType>("expense");
   const [name, setName] = useState("");
   const [color, setColor] = useState(defaultColor);
@@ -133,11 +137,11 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
       return;
     }
 
-    reset();
-  }, [editingCategory, visible]);
+    reset(preferredCategoryKind ?? "expense");
+  }, [editingCategory, preferredCategoryKind, visible]);
 
-  const reset = () => {
-    setKind("expense");
+  const reset = (nextKind: TransactionType = "expense") => {
+    setKind(nextKind);
     setName("");
     setColor(defaultColor);
     setIcon("pricetag");
@@ -154,7 +158,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
         queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
         queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments })
       ]);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await successFeedback();
       reset();
       onClose();
     },
@@ -195,7 +199,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
             contentContainerStyle={styles.scrollContent}
           >
             <View style={styles.segment}>
-              {(["expense", "income"] as TransactionType[]).map((value) => {
+              {(["expense", "income", "loan"] as TransactionType[]).map((value) => {
                 const selected = kind === value;
                 return (
                   <Pressable
@@ -204,7 +208,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
                     style={[styles.segmentButton, selected && styles.segmentButtonActive]}
                   >
                     <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>
-                      {value === "expense" ? "Expense" : "Income"}
+                      {value === "expense" ? "Expense" : value === "income" ? "Income" : "Loan"}
                     </Text>
                   </Pressable>
                 );
@@ -215,7 +219,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder={kind === "expense" ? "Subscriptions" : "Bonus"}
+              placeholder={kind === "expense" ? "Subscriptions" : kind === "income" ? "Bonus" : "Money lent"}
               style={styles.input}
               placeholderTextColor={colors.muted}
             />
@@ -273,7 +277,7 @@ export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) =>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end"
@@ -284,7 +288,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.36)"
+    backgroundColor: colors.overlay
   },
   sheet: {
     maxHeight: "88%",

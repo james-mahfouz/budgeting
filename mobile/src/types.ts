@@ -1,4 +1,4 @@
-export type TransactionType = "income" | "expense";
+export type TransactionType = "income" | "expense" | "loan";
 export type RecurringIntervalUnit = "day" | "week" | "month";
 export type Currency = "USD" | "LBP";
 
@@ -33,6 +33,7 @@ export type Transaction = {
   categoryId: string;
   merchant: string;
   note?: string;
+  repaidAt?: string;
   occurredAt: string;
   createdAt: string;
 };
@@ -62,6 +63,8 @@ export type DashboardSummary = {
   month: string;
   income: number;
   expenses: number;
+  loans: number;
+  outstandingLoans: number;
   balance: number;
   savingsRate: number;
   transactionCount: number;
@@ -80,6 +83,7 @@ export type CashFlowPoint = {
   month: string;
   income: number;
   expenses: number;
+  loans?: number;
   balance: number;
 };
 

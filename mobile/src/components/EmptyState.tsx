@@ -1,6 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme } from "../theme";
 
 type EmptyStateProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -8,13 +8,17 @@ type EmptyStateProps = {
   body: string;
 };
 
-export const EmptyState = ({ icon, title, body }: EmptyStateProps) => (
-  <View style={styles.empty}>
-    <Ionicons name={icon} size={26} color={colors.muted} />
-    <Text style={styles.title}>{title}</Text>
-    <Text style={styles.body}>{body}</Text>
-  </View>
-);
+export const EmptyState = ({ icon, title, body }: EmptyStateProps) => {
+  const { colors, text } = useAppTheme();
+
+  return (
+    <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Ionicons name={icon} size={26} color={colors.muted} />
+      <Text style={[styles.title, text.h2]}>{title}</Text>
+      <Text style={[styles.body, text.muted]}>{body}</Text>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   empty: {
@@ -22,18 +26,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.xl,
     borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border
+    borderWidth: 1
   },
   title: {
-    ...text.h2,
     textAlign: "center"
   },
   body: {
-    ...text.muted,
     textAlign: "center",
     lineHeight: 20
   }
 });
-

@@ -14,7 +14,7 @@ export const loginSchema = z.object({
 });
 
 export const createTransactionSchema = z.object({
-  type: z.enum(["income", "expense"]),
+  type: z.enum(["income", "expense", "loan"]),
   amount: z.coerce.number().positive().max(100_000_000_000),
   currency: z.enum(["USD", "LBP"]).default("USD"),
   exchangeRate: z.coerce.number().positive().max(1_000_000).optional(),
@@ -28,7 +28,7 @@ export const updateTransactionSchema = createTransactionSchema;
 
 export const createCategorySchema = z.object({
   name: z.string().trim().min(2).max(40),
-  kind: z.enum(["income", "expense"]),
+  kind: z.enum(["income", "expense", "loan"]),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a hex value"),
   icon: z.string().trim().min(1).max(40).default("pricetag")
 });
@@ -36,7 +36,7 @@ export const createCategorySchema = z.object({
 export const updateCategorySchema = createCategorySchema;
 
 export const createRecurringPaymentSchema = z.object({
-  type: z.enum(["income", "expense"]),
+  type: z.enum(["income", "expense", "loan"]),
   amount: z.coerce.number().positive().max(100_000_000_000),
   currency: z.enum(["USD", "LBP"]).default("USD"),
   exchangeRate: z.coerce.number().positive().max(1_000_000).optional(),
@@ -52,7 +52,7 @@ export const createRecurringPaymentSchema = z.object({
 
 export const transactionQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).optional(),
-  type: z.enum(["income", "expense"]).optional(),
+  type: z.enum(["income", "expense", "loan"]).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional()
 });

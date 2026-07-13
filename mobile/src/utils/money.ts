@@ -1,7 +1,6 @@
-const configuredLbpPerUsd = Number(process.env.EXPO_PUBLIC_LBP_PER_USD ?? "89500");
+import { LBP_PER_USD } from "../config";
 
-export const LBP_PER_USD =
-  Number.isFinite(configuredLbpPerUsd) && configuredLbpPerUsd > 0 ? configuredLbpPerUsd : 89500;
+export { LBP_PER_USD };
 
 export const money = (value = 0) =>
   new Intl.NumberFormat("en-US", {

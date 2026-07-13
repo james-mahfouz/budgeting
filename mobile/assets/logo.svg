@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="120" x2="864" y2="904" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="650" y1="286" x2="820" y2="456" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FDE68A"/>
+      <stop offset="1" stop-color="#F2A900"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="#0B1118"/>
+  <rect x="112" y="112" width="800" height="800" rx="196" fill="url(#bg)"/>
+  <path d="M282 372c0-49.7 40.3-90 90-90h348c27.6 0 50 22.4 50 50v53H413c-47.5 0-86 38.5-86 86v211c-27.2-14.9-45-43.9-45-76V372z" fill="#F4F7FB" opacity=".95"/>
+  <path d="M327 445c0-36.5 29.5-66 66-66h336c38.7 0 70 31.3 70 70v225c0 38.7-31.3 70-70 70H397c-38.7 0-70-31.3-70-70V445z" fill="#F4F7FB"/>
+  <path d="M618 483h154c14.9 0 27 12.1 27 27v109c0 14.9-12.1 27-27 27H618c-45 0-81.5-36.5-81.5-81.5S573 483 618 483z" fill="#0B1118" opacity=".88"/>
+  <circle cx="620" cy="565" r="34" fill="#F2A900"/>
+  <path d="M412 652h50V545h-50v107zm83 0h50V501h-50v151zm83 0h50V577h-50v75z" fill="#0F766E"/>
+  <circle cx="726" cy="374" r="82" fill="url(#coin)"/>
+  <path d="M699 375l19 20 39-48" fill="none" stroke="#0B1118" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

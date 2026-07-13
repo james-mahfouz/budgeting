@@ -1,43 +1,38 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme } from "../theme";
 
 type StatCardProps = {
   label: string;
   value: string;
   icon: keyof typeof Ionicons.glyphMap;
-  tone?: "primary" | "income" | "expense" | "blue";
+  tone?: "primary" | "income" | "expense" | "loan" | "blue";
 };
 
-const toneColors = {
-  primary: colors.primary,
-  income: colors.income,
-  expense: colors.expense,
-  blue: colors.blue
-};
+export const StatCard = ({ label, value, icon, tone = "primary" }: StatCardProps) => {
+  const { colors, text } = useAppTheme();
+  const toneColor = colors[tone];
 
-export const StatCard = ({ label, value, icon, tone = "primary" }: StatCardProps) => (
-  <View style={styles.card}>
-    <View style={[styles.icon, { backgroundColor: `${toneColors[tone]}18` }]}>
-      <Ionicons name={icon} size={20} color={toneColors[tone]} />
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.shadow }]}>
+      <View style={[styles.icon, { backgroundColor: `${toneColor}18` }]}>
+        <Ionicons name={icon} size={20} color={toneColor} />
+      </View>
+      <Text style={[styles.label, text.muted]}>{label}</Text>
+      <Text style={[styles.value, { color: colors.ink }]} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
     </View>
-    <Text style={styles.label}>{label}</Text>
-    <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
-      {value}
-    </Text>
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {
     flex: 1,
     minHeight: 124,
-    backgroundColor: colors.surface,
     borderRadius: radii.md,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
     shadowOpacity: 1,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
@@ -52,13 +47,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md
   },
   label: {
-    ...text.muted,
     marginBottom: spacing.xs
   },
   value: {
     fontSize: 21,
-    fontWeight: "800",
-    color: colors.ink
+    fontWeight: "800"
   }
 });
-

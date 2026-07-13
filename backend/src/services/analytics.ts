@@ -14,13 +14,18 @@ export const getDashboardSummary = (transactions: Transaction[], month = current
   const monthlyTransactions = transactionsForMonth(transactions, month);
   const income = sum(monthlyTransactions.filter((item) => item.type === "income").map((item) => item.amount));
   const expenses = sum(monthlyTransactions.filter((item) => item.type === "expense").map((item) => item.amount));
+  const loans = sum(monthlyTransactions.filter((item) => item.type === "loan").map((item) => item.amount));
+  const outstandingLoans = sum(transactions.filter((item) => item.type === "loan" && !item.repaidAt).map((item) => item.amount));
+  const balance = income - expenses - loans;
 
   return {
     month,
     income,
     expenses,
-    balance: income - expenses,
-    savingsRate: income > 0 ? Math.round(((income - expenses) / income) * 100) : 0,
+    loans,
+    outstandingLoans,
+    balance,
+    savingsRate: income > 0 ? Math.round((balance / income) * 100) : 0,
     transactionCount: monthlyTransactions.length
   };
 };
@@ -57,20 +62,22 @@ export const spendingByCategory = (
 };
 
 export const cashFlowTrend = (transactions: Transaction[]) => {
-  const months = new Map<string, { month: string; income: number; expenses: number; balance: number }>();
+  const months = new Map<string, { month: string; income: number; expenses: number; loans: number; balance: number }>();
   const sorted = [...transactions].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 
   for (const transaction of sorted) {
     const month = monthLabel(transaction.occurredAt);
-    const current = months.get(month) ?? { month, income: 0, expenses: 0, balance: 0 };
+    const current = months.get(month) ?? { month, income: 0, expenses: 0, loans: 0, balance: 0 };
 
     if (transaction.type === "income") {
       current.income += transaction.amount;
+    } else if (transaction.type === "loan") {
+      current.loans += transaction.amount;
     } else {
       current.expenses += transaction.amount;
     }
 
-    current.balance = current.income - current.expenses;
+    current.balance = current.income - current.expenses - current.loans;
     months.set(month, current);
   }
 

@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import type {
   AuthResponse,
   CashFlowPoint,
@@ -13,9 +12,7 @@ import type {
   UpdateCategoryInput,
   UpdateTransactionInput
 } from "../types";
-
-export const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000");
+import { API_URL } from "../config";
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -109,6 +106,8 @@ export const api = {
     request<{ transaction: Transaction }>("/api/transactions", { method: "POST", body: input }),
   updateTransaction: (id: string, input: UpdateTransactionInput) =>
     request<{ transaction: Transaction }>(`/api/transactions/${id}`, { method: "PUT", body: input }),
+  repayLoan: (id: string) => request<{ transaction: Transaction }>(`/api/transactions/${id}/repay`, { method: "POST" }),
+  reopenLoan: (id: string) => request<{ transaction: Transaction }>(`/api/transactions/${id}/reopen`, { method: "POST" }),
   deleteTransaction: (id: string) => request<void>(`/api/transactions/${id}`, { method: "DELETE" }),
   recurringPayments: () => request<{ recurringPayments: RecurringPayment[] }>("/api/recurring-payments"),
   createRecurringPayment: (input: CreateRecurringPaymentInput) =>

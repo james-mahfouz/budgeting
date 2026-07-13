@@ -5,6 +5,14 @@ dist/
 .expo-shared/
 android/
 ios/
+!mobile/android/
+!mobile/android/**
+mobile/android/.gradle/
+mobile/android/.kotlin/
+mobile/android/local.properties
+mobile/android/build/
+mobile/android/app/.cxx/
+mobile/android/app/build/
 web-build/
 *.log
 .env

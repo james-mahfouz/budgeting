@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors } from "../theme";
+import { useAppTheme } from "../theme";
 
 type ScreenProps = {
   children: ReactNode;
@@ -9,9 +9,10 @@ type ScreenProps = {
 
 export const Screen = ({ children }: ScreenProps) => {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
 
   return (
-    <View style={[styles.safeArea, { paddingTop: insets.top }]}>
+    <View style={[styles.safeArea, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.content}>{children}</View>
     </View>
   );
@@ -19,8 +20,7 @@ export const Screen = ({ children }: ScreenProps) => {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1,
-    backgroundColor: colors.background
+    flex: 1
   },
   content: {
     flex: 1

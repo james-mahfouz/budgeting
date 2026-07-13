@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, spacing, text } from "../theme";
+import { spacing, useAppTheme } from "../theme";
 
 type HeaderProps = {
   title: string;
@@ -8,17 +8,21 @@ type HeaderProps = {
   action?: ReactNode;
 };
 
-export const Header = ({ title, subtitle, action }: HeaderProps) => (
-  <View style={styles.header}>
-    <View style={styles.copy}>
-      <Text style={text.title} numberOfLines={1}>
-        {title}
-      </Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+export const Header = ({ title, subtitle, action }: HeaderProps) => {
+  const { text } = useAppTheme();
+
+  return (
+    <View style={styles.header}>
+      <View style={styles.copy}>
+        <Text style={text.title} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? <Text style={[styles.subtitle, text.muted]}>{subtitle}</Text> : null}
+      </View>
+      {action}
     </View>
-    {action}
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   header: {
@@ -35,9 +39,6 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   subtitle: {
-    ...text.muted,
-    color: colors.muted,
     marginTop: 2
   }
 });
-

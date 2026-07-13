@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme } from "../theme";
 
 type PanelProps = {
   title?: string;
@@ -8,25 +8,27 @@ type PanelProps = {
   children: ReactNode;
 };
 
-export const Panel = ({ title, action, children }: PanelProps) => (
-  <View style={styles.panel}>
-    {title || action ? (
-      <View style={styles.header}>
-        {title ? <Text style={styles.title}>{title}</Text> : <View />}
-        {action}
-      </View>
-    ) : null}
-    {children}
-  </View>
-);
+export const Panel = ({ title, action, children }: PanelProps) => {
+  const { colors, text } = useAppTheme();
+
+  return (
+    <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      {title || action ? (
+        <View style={styles.header}>
+          {title ? <Text style={[styles.title, text.h2]}>{title}</Text> : <View />}
+          {action}
+        </View>
+      ) : null}
+      {children}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: colors.surface,
     borderRadius: radii.md,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
     gap: spacing.md
   },
   header: {
@@ -36,8 +38,6 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   title: {
-    ...text.h2,
     flex: 1
   }
 });
-

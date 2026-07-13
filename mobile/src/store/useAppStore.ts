@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { Category, Transaction, User } from "../types";
+import type { ThemePreference } from "../theme";
+import type { Category, Transaction, TransactionType, User } from "../types";
 
 type AppStore = {
   isAuthReady: boolean;
@@ -9,13 +10,17 @@ type AppStore = {
   isRecurringModalOpen: boolean;
   editingCategory: Category | null;
   editingTransaction: Transaction | null;
+  preferredTransactionType: TransactionType | null;
+  preferredCategoryKind: TransactionType | null;
+  themePreference: ThemePreference;
   setAuthReady: (ready: boolean) => void;
   signIn: (user: User) => void;
   signOut: () => void;
-  openAddModal: () => void;
+  setThemePreference: (preference: ThemePreference) => void;
+  openAddModal: (type?: TransactionType) => void;
   openEditTransactionModal: (transaction: Transaction) => void;
   closeAddModal: () => void;
-  openCategoryModal: () => void;
+  openCategoryModal: (kind?: TransactionType) => void;
   openEditCategoryModal: (category: Category) => void;
   closeCategoryModal: () => void;
   openRecurringModal: () => void;
@@ -30,8 +35,12 @@ export const useAppStore = create<AppStore>((set) => ({
   isRecurringModalOpen: false,
   editingCategory: null,
   editingTransaction: null,
+  preferredTransactionType: null,
+  preferredCategoryKind: null,
+  themePreference: "system",
   setAuthReady: (ready) => set({ isAuthReady: ready }),
   signIn: (user) => set({ user, isAuthReady: true }),
+  setThemePreference: (preference) => set({ themePreference: preference }),
   signOut: () =>
     set({
       user: null,
@@ -40,14 +49,17 @@ export const useAppStore = create<AppStore>((set) => ({
       isCategoryModalOpen: false,
       isRecurringModalOpen: false,
       editingCategory: null,
-      editingTransaction: null
+      editingTransaction: null,
+      preferredTransactionType: null,
+      preferredCategoryKind: null
     }),
-  openAddModal: () => set({ isAddModalOpen: true, editingTransaction: null }),
-  openEditTransactionModal: (transaction) => set({ isAddModalOpen: true, editingTransaction: transaction }),
-  closeAddModal: () => set({ isAddModalOpen: false, editingTransaction: null }),
-  openCategoryModal: () => set({ isCategoryModalOpen: true, editingCategory: null }),
-  openEditCategoryModal: (category) => set({ isCategoryModalOpen: true, editingCategory: category }),
-  closeCategoryModal: () => set({ isCategoryModalOpen: false, editingCategory: null }),
+  openAddModal: (type = "expense") => set({ isAddModalOpen: true, editingTransaction: null, preferredTransactionType: type }),
+  openEditTransactionModal: (transaction) =>
+    set({ isAddModalOpen: true, editingTransaction: transaction, preferredTransactionType: null }),
+  closeAddModal: () => set({ isAddModalOpen: false, editingTransaction: null, preferredTransactionType: null }),
+  openCategoryModal: (kind = "expense") => set({ isCategoryModalOpen: true, editingCategory: null, preferredCategoryKind: kind }),
+  openEditCategoryModal: (category) => set({ isCategoryModalOpen: true, editingCategory: category, preferredCategoryKind: null }),
+  closeCategoryModal: () => set({ isCategoryModalOpen: false, editingCategory: null, preferredCategoryKind: null }),
   openRecurringModal: () => set({ isRecurringModalOpen: true }),
   closeRecurringModal: () => set({ isRecurringModalOpen: false })
 }));

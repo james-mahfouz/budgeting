@@ -1,6 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	ActivityIndicator,
 	Alert,
@@ -16,13 +16,16 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { api, setAuthToken } from "../api/client";
 import { authTokenKey } from "../auth/storage";
+import { AppLogo } from "../components/AppLogo";
 import { Screen } from "../components/Screen";
 import { useAppStore } from "../store/useAppStore";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
 
 type AuthMode = "login" | "register";
 
 export const AuthScreen = () => {
+	const { colors, text } = useAppTheme();
+	const styles = useMemo(() => createStyles(colors, text), [colors, text]);
 	const signIn = useAppStore((state) => state.signIn);
 	const [mode, setMode] = useState<AuthMode>("login");
 	const [name, setName] = useState("");
@@ -90,9 +93,7 @@ export const AuthScreen = () => {
 					keyboardDismissMode="none"
 					showsVerticalScrollIndicator={false}
 				>
-					<View style={styles.brandIcon}>
-						<Ionicons name="wallet" size={30} color={colors.surface} />
-					</View>
+					<AppLogo size={72} />
 					<Text style={styles.title}>Budgeting</Text>
 					<Text style={styles.subtitle}>
 						Sign in to keep your transactions, categories, and recurring payments private.
@@ -219,7 +220,7 @@ export const AuthScreen = () => {
 	);
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
 	keyboard: {
 		flex: 1,
 	},
@@ -229,15 +230,6 @@ const styles = StyleSheet.create({
 		padding: spacing.lg,
 		paddingBottom: spacing.xxl * 2,
 		gap: spacing.md,
-	},
-	brandIcon: {
-		width: 64,
-		height: 64,
-		borderRadius: 32,
-		alignItems: "center",
-		justifyContent: "center",
-		backgroundColor: colors.primary,
-		marginBottom: spacing.sm,
 	},
 	title: {
 		...text.title,

@@ -1,5 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,9 +16,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
 import { useAppStore } from "../store/useAppStore";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
 import type { Category, Currency, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
+import { successFeedback } from "../utils/haptics";
 import { LBP_PER_USD, amountInputToNumber, amountToUsd, money } from "../utils/money";
 
 type AddTransactionModalProps = {
@@ -29,13 +29,17 @@ type AddTransactionModalProps = {
 
 const typeOptions: Array<{ label: string; value: TransactionType; icon: keyof typeof Ionicons.glyphMap }> = [
   { label: "Expense", value: "expense", icon: "arrow-up-circle" },
-  { label: "Income", value: "income", icon: "arrow-down-circle" }
+  { label: "Income", value: "income", icon: "arrow-down-circle" },
+  { label: "Loan", value: "loan", icon: "swap-horizontal" }
 ];
 
 export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalProps) => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   const queryClient = useQueryClient();
   const openCategoryModal = useAppStore((state) => state.openCategoryModal);
   const editingTransaction = useAppStore((state) => state.editingTransaction);
+  const preferredTransactionType = useAppStore((state) => state.preferredTransactionType);
   const [type, setType] = useState<TransactionType>("expense");
   const [currency, setCurrency] = useState<Currency>("USD");
   const [amount, setAmount] = useState("");
@@ -55,7 +59,8 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   const categoriesByType = useMemo(
     () => ({
       expense: categories.filter((category) => category.kind === "expense"),
-      income: categories.filter((category) => category.kind === "income")
+      income: categories.filter((category) => category.kind === "income"),
+      loan: categories.filter((category) => category.kind === "loan")
     }),
     [categories]
   );
@@ -97,12 +102,12 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
       return;
     }
 
-    resetForm();
+    resetForm(preferredTransactionType ?? "expense");
     trackEvent("add_transaction_opened", { source: "modal" });
-  }, [editingTransaction, visible]);
+  }, [editingTransaction, preferredTransactionType, visible]);
 
-  const resetForm = () => {
-    setType("expense");
+  const resetForm = (nextType: TransactionType = "expense") => {
+    setType(nextType);
     setCurrency("USD");
     setAmount("");
     setMerchant("");
@@ -121,7 +126,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
         queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.cashFlow })
       ]);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await successFeedback();
       resetForm();
       onClose();
     },
@@ -173,7 +178,11 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>{isEditing ? "Edit transaction" : "Add transaction"}</Text>
-              <Text style={styles.subtitle}>{isEditing ? "Update amount, category, or details." : "Track income and expenses in USD."}</Text>
+              <Text style={styles.subtitle}>
+                {isEditing
+                  ? "Update amount, category, or details."
+                  : "Track income, expenses, and money to be returned."}
+              </Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.ink} />
@@ -233,7 +242,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
             <TextInput
               value={merchant}
               onChangeText={setMerchant}
-              placeholder={type === "income" ? "Paycheck" : "Grocery store"}
+              placeholder={type === "income" ? "Paycheck" : type === "loan" ? "Friend or family" : "Grocery store"}
               style={styles.input}
               placeholderTextColor={colors.muted}
             />
@@ -244,7 +253,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
                 <Pressable
-                  onPress={openCategoryModal}
+                  onPress={() => openCategoryModal(type)}
                   style={[styles.categoryChip, styles.addCategoryChip]}
                   accessibilityRole="button"
                   accessibilityLabel="Add category"
@@ -307,7 +316,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end"
@@ -318,7 +327,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.36)"
+    backgroundColor: colors.overlay
   },
   sheet: {
     maxHeight: "92%",
@@ -413,7 +422,7 @@ const styles = StyleSheet.create({
   },
   currencyButtonActive: {
     borderColor: colors.primary,
-    backgroundColor: "#E6FFFA"
+    backgroundColor: colors.primarySoft
   },
   currencyText: {
     color: colors.muted,
@@ -473,7 +482,7 @@ const styles = StyleSheet.create({
   },
   addCategoryChip: {
     borderColor: colors.primary,
-    backgroundColor: "#E6FFFA"
+    backgroundColor: colors.primarySoft
   },
   categoryText: {
     color: colors.ink,

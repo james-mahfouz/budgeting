@@ -1,5 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,9 +15,10 @@ import {
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
 import type { Category, Currency, RecurringPayment, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
+import { successFeedback } from "../utils/haptics";
 import { LBP_PER_USD, amountInputToNumber, amountToUsd, money } from "../utils/money";
 
 type AddRecurringPaymentModalProps = {
@@ -39,6 +39,8 @@ const weekDays = [
 ];
 
 export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPaymentModalProps) => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   const queryClient = useQueryClient();
   const month = currentMonth();
   const [type, setType] = useState<TransactionType>("expense");
@@ -65,7 +67,8 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
     const categories = categoriesQuery.data?.categories ?? [];
     return {
       expense: categories.filter((category) => category.kind === "expense"),
-      income: categories.filter((category) => category.kind === "income")
+      income: categories.filter((category) => category.kind === "income"),
+      loan: categories.filter((category) => category.kind === "loan")
     };
   }, [categoriesQuery.data?.categories]);
   const parsedAmount = amountInputToNumber(amount);
@@ -115,7 +118,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
         queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(month) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.cashFlow })
       ]);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await successFeedback();
       reset();
       onClose();
     },
@@ -173,7 +176,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Recurring payment</Text>
-              <Text style={styles.subtitle}>Automate bills, subscriptions, and income.</Text>
+              <Text style={styles.subtitle}>Automate bills, subscriptions, income, and loans.</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.ink} />
@@ -187,7 +190,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
             contentContainerStyle={styles.scrollContent}
           >
             <View style={styles.segment}>
-              {(["expense", "income"] as TransactionType[]).map((value) => {
+              {(["expense", "income", "loan"] as TransactionType[]).map((value) => {
                 const selected = type === value;
                 return (
                   <Pressable
@@ -196,7 +199,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
                     style={[styles.segmentButton, selected && styles.segmentButtonActive]}
                   >
                     <Text style={[styles.segmentText, selected && styles.segmentTextActive]}>
-                      {value === "expense" ? "Expense" : "Income"}
+                      {value === "expense" ? "Expense" : value === "income" ? "Income" : "Loan"}
                     </Text>
                   </Pressable>
                 );
@@ -234,7 +237,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
             <TextInput
               value={merchant}
               onChangeText={setMerchant}
-              placeholder={type === "income" ? "Salary" : "Netflix"}
+              placeholder={type === "income" ? "Salary" : type === "loan" ? "Monthly loan" : "Netflix"}
               style={styles.input}
               placeholderTextColor={colors.muted}
             />
@@ -361,7 +364,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: "flex-end"
@@ -372,7 +375,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.36)"
+    backgroundColor: colors.overlay
   },
   sheet: {
     maxHeight: "92%",
@@ -465,7 +468,7 @@ const styles = StyleSheet.create({
   },
   currencyButtonActive: {
     borderColor: colors.primary,
-    backgroundColor: "#E6FFFA"
+    backgroundColor: colors.primarySoft
   },
   currencyText: {
     color: colors.muted,
@@ -545,7 +548,7 @@ const styles = StyleSheet.create({
   },
   weekButtonActive: {
     borderColor: colors.primary,
-    backgroundColor: "#E6FFFA"
+    backgroundColor: colors.primarySoft
   },
   weekText: {
     color: colors.ink,

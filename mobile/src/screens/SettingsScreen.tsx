@@ -1,17 +1,18 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { API_URL, api, queryKeys, setAuthToken, trackEvent } from "../api/client";
+import { api, queryKeys, setAuthToken, trackEvent } from "../api/client";
 import { authTokenKey } from "../auth/storage";
+import { API_URL } from "../config";
 import { EmptyState } from "../components/EmptyState";
 import { Header } from "../components/Header";
 import { IconButton } from "../components/IconButton";
 import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { useAppStore } from "../store/useAppStore";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, themeLabels, useAppTheme, type AppColors, type AppText, type ThemePreference } from "../theme";
 import type { Category } from "../types";
 import { currentMonth, readableDate } from "../utils/date";
 import { money } from "../utils/money";
@@ -32,6 +33,8 @@ const scheduleLabel = (rule: { intervalUnit: string; scheduleDay?: number; inter
 };
 
 export const SettingsScreen = () => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   useScreenTracking("settings");
   const openAddModal = useAppStore((state) => state.openAddModal);
   const openCategoryModal = useAppStore((state) => state.openCategoryModal);
@@ -39,6 +42,8 @@ export const SettingsScreen = () => {
   const openRecurringModal = useAppStore((state) => state.openRecurringModal);
   const user = useAppStore((state) => state.user);
   const signOut = useAppStore((state) => state.signOut);
+  const themePreference = useAppStore((state) => state.themePreference);
+  const setThemePreference = useAppStore((state) => state.setThemePreference);
   const queryClient = useQueryClient();
   const healthQuery = useQuery({
     queryKey: queryKeys.health,
@@ -126,9 +131,29 @@ export const SettingsScreen = () => {
           <ActionButton icon="log-out-outline" label="Logout" onPress={logout} />
         </Panel>
 
+        <Panel title="Appearance">
+          <View style={styles.themeSegment}>
+            {(["system", "light", "dark"] as ThemePreference[]).map((preference) => {
+              const active = preference === themePreference;
+              return (
+                <Pressable
+                  key={preference}
+                  accessibilityRole="button"
+                  onPress={() => setThemePreference(preference)}
+                  style={[styles.themeButton, active && styles.themeButtonActive]}
+                >
+                  <Text style={[styles.themeButtonText, active && styles.themeButtonTextActive]}>
+                    {themeLabels[preference]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Panel>
+
         <Panel title="Quick actions">
-          <ActionButton icon="add-circle" label="Add transaction" onPress={openAddModal} />
-          <ActionButton icon="pricetag" label="Add category" onPress={openCategoryModal} />
+          <ActionButton icon="add-circle" label="Add transaction" onPress={() => openAddModal()} />
+          <ActionButton icon="pricetag" label="Add category" onPress={() => openCategoryModal()} />
           <ActionButton icon="repeat" label="Add recurring payment" onPress={openRecurringModal} />
           <ActionButton icon="sync" label="Refresh data" onPress={refreshAll} />
         </Panel>
@@ -144,26 +169,28 @@ export const SettingsScreen = () => {
                   <Text style={styles.categoryTitle} numberOfLines={1}>
                     {category.name}
                   </Text>
-                  <Text style={styles.categoryMeta}>{category.kind === "income" ? "Income" : "Expense"}</Text>
+                  <Text style={styles.categoryMeta}>
+                    {category.kind === "income" ? "Income" : category.kind === "loan" ? "Loan" : "Expense"}
+                  </Text>
                 </View>
                 <IconButton
                   name="create-outline"
                   label="Edit category"
                   onPress={() => openEditCategoryModal(category)}
                   color={colors.primary}
-                  backgroundColor="#E6FFFA"
+                  backgroundColor={colors.primarySoft}
                 />
                 <IconButton
                   name="trash-outline"
                   label="Delete category"
                   onPress={() => confirmDeleteCategory(category)}
                   color={colors.danger}
-                  backgroundColor="#FEF3F2"
+                  backgroundColor={colors.dangerSoft}
                 />
               </View>
             ))
           ) : (
-            <EmptyState icon="pricetag" title="No categories" body="Create income and expense categories for your transactions." />
+            <EmptyState icon="pricetag" title="No categories" body="Create income, expense, and loan categories for your transactions." />
           )}
         </Panel>
 
@@ -193,7 +220,7 @@ export const SettingsScreen = () => {
                     label="Delete recurring payment"
                     onPress={() => confirmDeleteRecurring(rule.id)}
                     color={colors.danger}
-                    backgroundColor="#FEF3F2"
+                    backgroundColor={colors.dangerSoft}
                   />
                 </View>
               );
@@ -217,29 +244,31 @@ export const SettingsScreen = () => {
               </Text>
             </View>
           </View>
-          <Text style={styles.note}>
-            Android emulator uses 10.0.2.2 for the host machine. Physical devices need your computer LAN IP in
-            EXPO_PUBLIC_API_URL.
-          </Text>
+          <Text style={styles.note}>Release builds use the app backend URL configured in src/config.ts.</Text>
         </Panel>
       </ScrollView>
     </Screen>
   );
 };
 
-const ActionButton = ({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) => (
-  <Pressable
-    accessibilityRole="button"
-    onPress={onPress}
-    style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.72 : 1 }]}
-  >
-    <Ionicons name={icon} size={22} color={colors.primary} />
-    <Text style={styles.actionText}>{label}</Text>
-    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-  </Pressable>
-);
+const ActionButton = ({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
 
-const styles = StyleSheet.create({
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.72 : 1 }]}
+    >
+      <Ionicons name={icon} size={22} color={colors.primary} />
+      <Text style={styles.actionText}>{label}</Text>
+      <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+    </Pressable>
+  );
+};
+
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: 112,
@@ -270,6 +299,32 @@ const styles = StyleSheet.create({
   note: {
     ...text.muted,
     lineHeight: 20
+  },
+  themeSegment: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    padding: spacing.xs,
+    borderRadius: radii.md,
+    backgroundColor: colors.background
+  },
+  themeButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: radii.sm,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  themeButtonActive: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  themeButtonText: {
+    ...text.muted,
+    fontWeight: "900"
+  },
+  themeButtonTextActive: {
+    color: colors.ink
   },
   actionButton: {
     minHeight: 54,

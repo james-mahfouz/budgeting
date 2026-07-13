@@ -1,6 +1,4 @@
-declare const process: {
-  env: {
-    EXPO_PUBLIC_API_URL?: string;
-    EXPO_PUBLIC_LBP_PER_USD?: string;
-  };
-};
+declare module "*.png" {
+  const value: number;
+  export default value;
+}

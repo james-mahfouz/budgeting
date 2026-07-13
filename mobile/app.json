@@ -1,20 +1,4 @@
 {
-  "expo": {
-    "name": "Budgeting",
-    "slug": "budgeting",
-    "version": "0.1.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "scheme": "budgeting",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "android": {
-      "package": "com.budgeting.app",
-      "softwareKeyboardLayoutMode": "resize"
-    },
-    "extra": {
-      "apiUrl": "http://10.0.2.2:4000"
-    }
-  }
+  "name": "Budgeting",
+  "displayName": "Budgeting"
 }

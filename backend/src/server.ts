@@ -60,6 +60,32 @@ const parseOrReply = <T>(
 
 export const buildServer = async (store: JsonStore) => {
   await store.init();
+  await store.update((data) => {
+    const now = new Date().toISOString();
+
+    for (const user of data.users) {
+      const migrationEventName = "loan_category_backfilled";
+      const alreadyChecked = data.events.some((event) => event.userId === user.id && event.name === migrationEventName);
+      if (alreadyChecked) {
+        continue;
+      }
+
+      const hasLoanCategory = data.categories.some((category) => category.userId === user.id && category.kind === "loan");
+      if (!hasLoanCategory) {
+        const loanCategory = categoriesForUser(user.id).find((category) => category.kind === "loan");
+        if (loanCategory) {
+          data.categories.push(loanCategory);
+        }
+      }
+
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: migrationEventName,
+        createdAt: now
+      });
+    }
+  });
 
   const app = Fastify({
     logger: {
@@ -511,6 +537,84 @@ export const buildServer = async (store: JsonStore) => {
 
     if (!transaction) {
       reply.code(404).send({ error: "Transaction not found" });
+      return;
+    }
+
+    reply.send({ transaction });
+  });
+
+  app.post("/api/transactions/:id/repay", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const id = (request.params as { id: string }).id;
+    const now = new Date().toISOString();
+    let transaction: Transaction | undefined;
+
+    await store.update((data) => {
+      transaction = data.transactions.find((item) => item.id === id && item.userId === user.id);
+      if (!transaction || transaction.type !== "loan") {
+        return;
+      }
+
+      transaction.repaidAt = now;
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: "loan_marked_repaid",
+        payload: { transactionId: id },
+        createdAt: now
+      });
+    });
+
+    if (!transaction) {
+      reply.code(404).send({ error: "Loan transaction not found" });
+      return;
+    }
+
+    if (transaction.type !== "loan") {
+      reply.code(422).send({ error: "Only loan transactions can be marked returned" });
+      return;
+    }
+
+    reply.send({ transaction });
+  });
+
+  app.post("/api/transactions/:id/reopen", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const id = (request.params as { id: string }).id;
+    const now = new Date().toISOString();
+    let transaction: Transaction | undefined;
+
+    await store.update((data) => {
+      transaction = data.transactions.find((item) => item.id === id && item.userId === user.id);
+      if (!transaction || transaction.type !== "loan") {
+        return;
+      }
+
+      delete transaction.repaidAt;
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: "loan_reopened",
+        payload: { transactionId: id },
+        createdAt: now
+      });
+    });
+
+    if (!transaction) {
+      reply.code(404).send({ error: "Loan transaction not found" });
+      return;
+    }
+
+    if (transaction.type !== "loan") {
+      reply.code(422).send({ error: "Only loan transactions can be reopened" });
       return;
     }
 

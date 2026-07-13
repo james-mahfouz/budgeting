@@ -1,4 +1,5 @@
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, queryKeys } from "../api/client";
 import { EmptyState } from "../components/EmptyState";
@@ -6,12 +7,14 @@ import { Header } from "../components/Header";
 import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { StatCard } from "../components/StatCard";
-import { colors, spacing, text } from "../theme";
+import { spacing, useAppTheme, type AppColors, type AppText } from "../theme";
 import { currentMonth, readableMonth } from "../utils/date";
 import { compactMoney, money } from "../utils/money";
 import { useScreenTracking } from "../utils/useScreenTracking";
 
 export const AnalyticsScreen = () => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   useScreenTracking("analytics");
   const month = currentMonth();
   const summaryQuery = useQuery({ queryKey: queryKeys.summary(month), queryFn: () => api.summary(month) });
@@ -46,7 +49,11 @@ export const AnalyticsScreen = () => {
             </View>
             <View style={styles.statRow}>
               <StatCard label="Net" value={money(summary?.balance ?? 0)} icon="wallet" tone="blue" />
+              <StatCard label="Loans" value={money(summary?.loans ?? 0)} icon="swap-horizontal" tone="loan" />
+            </View>
+            <View style={styles.statRow}>
               <StatCard label="Savings rate" value={`${summary?.savingsRate ?? 0}%`} icon="trending-up" tone="primary" />
+              <StatCard label="Outstanding loans" value={money(summary?.outstandingLoans ?? 0)} icon="hourglass" tone="loan" />
             </View>
           </>
         )}
@@ -124,7 +131,7 @@ export const AnalyticsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: 112,

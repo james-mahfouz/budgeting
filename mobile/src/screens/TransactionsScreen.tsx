@@ -9,7 +9,7 @@ import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { TransactionRow } from "../components/TransactionRow";
 import { useAppStore } from "../store/useAppStore";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
 import type { TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
 import { useScreenTracking } from "../utils/useScreenTracking";
@@ -19,10 +19,13 @@ type Filter = "all" | TransactionType;
 const filters: Array<{ label: string; value: Filter }> = [
   { label: "All", value: "all" },
   { label: "Expenses", value: "expense" },
-  { label: "Income", value: "income" }
+  { label: "Income", value: "income" },
+  { label: "Loans", value: "loan" }
 ];
 
 export const TransactionsScreen = () => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   useScreenTracking("transactions");
   const [filter, setFilter] = useState<Filter>("all");
   const openAddModal = useAppStore((state) => state.openAddModal);
@@ -74,7 +77,7 @@ export const TransactionsScreen = () => {
       <Header
         title="Transactions"
         subtitle="Filter, review, and clean up entries"
-        action={<IconButton name="add" label="Add transaction" onPress={openAddModal} backgroundColor={colors.primary} color={colors.surface} />}
+        action={<IconButton name="add" label="Add transaction" onPress={() => openAddModal()} backgroundColor={colors.primary} color={colors.surface} />}
       />
       <View style={styles.filters}>
         {filters.map((item) => {
@@ -114,7 +117,7 @@ export const TransactionsScreen = () => {
                       label="Delete transaction"
                       onPress={() => confirmDelete(transaction.id)}
                       color={colors.danger}
-                      backgroundColor="#FEF3F2"
+                      backgroundColor={colors.dangerSoft}
                     />
                   </View>
                 }
@@ -133,7 +136,7 @@ export const TransactionsScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   filters: {
     flexDirection: "row",
     marginHorizontal: spacing.lg,

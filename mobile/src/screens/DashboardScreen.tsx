@@ -1,4 +1,4 @@
-import { LinearGradient } from "expo-linear-gradient";
+import LinearGradient from "react-native-linear-gradient";
 import { useMemo } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -11,12 +11,14 @@ import { Screen } from "../components/Screen";
 import { StatCard } from "../components/StatCard";
 import { TransactionRow } from "../components/TransactionRow";
 import { useAppStore } from "../store/useAppStore";
-import { colors, radii, spacing, text } from "../theme";
+import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
 import { currentMonth, readableMonth } from "../utils/date";
 import { money } from "../utils/money";
 import { useScreenTracking } from "../utils/useScreenTracking";
 
 export const DashboardScreen = () => {
+  const { colors, text } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   useScreenTracking("dashboard");
   const openAddModal = useAppStore((state) => state.openAddModal);
   const month = currentMonth();
@@ -48,7 +50,7 @@ export const DashboardScreen = () => {
       <Header
         title="Budgeting"
         subtitle={readableMonth(month)}
-        action={<IconButton name="add" label="Add transaction" onPress={openAddModal} backgroundColor={colors.primary} color={colors.surface} />}
+        action={<IconButton name="add" label="Add transaction" onPress={() => openAddModal()} backgroundColor={colors.primary} color={colors.surface} />}
       />
       <ScrollView
         contentContainerStyle={styles.content}
@@ -57,7 +59,7 @@ export const DashboardScreen = () => {
         {summaryQuery.isLoading ? (
           <ActivityIndicator color={colors.primary} style={styles.loader} />
         ) : (
-          <LinearGradient colors={["#0E9384", "#2563EB"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <LinearGradient colors={[colors.primary, colors.blue]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
             <Text style={styles.heroLabel}>Available this month</Text>
             <Text style={styles.heroAmount} adjustsFontSizeToFit numberOfLines={1}>
               {money(summary?.balance ?? 0)}
@@ -65,6 +67,7 @@ export const DashboardScreen = () => {
             <View style={styles.heroMetaRow}>
               <Text style={styles.heroMeta}>Income {money(summary?.income ?? 0)}</Text>
               <Text style={styles.heroMeta}>Spent {money(summary?.expenses ?? 0)}</Text>
+              <Text style={styles.heroMeta}>Loans {money(summary?.loans ?? 0)}</Text>
             </View>
             <View style={styles.heroTrack}>
               <View style={[styles.heroFill, { width: `${spendingProgress}%` }]} />
@@ -74,7 +77,7 @@ export const DashboardScreen = () => {
 
         <View style={styles.statRow}>
           <StatCard label="Savings rate" value={`${summary?.savingsRate ?? 0}%`} icon="trending-up" tone="income" />
-          <StatCard label="Transactions" value={`${summary?.transactionCount ?? 0}`} icon="receipt" tone="blue" />
+          <StatCard label="Outstanding loans" value={money(summary?.outstandingLoans ?? 0)} icon="swap-horizontal" tone="loan" />
         </View>
 
         <Panel title="Top spending">
@@ -109,7 +112,7 @@ export const DashboardScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: 112,
@@ -138,12 +141,14 @@ const styles = StyleSheet.create({
   heroMetaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    flexWrap: "wrap",
     gap: spacing.md,
     marginTop: spacing.lg
   },
   heroMeta: {
     color: colors.surface,
-    fontWeight: "800"
+    fontWeight: "800",
+    flexShrink: 1
   },
   heroTrack: {
     height: 8,

@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Category, Transaction } from "../types";
-import { colors, spacing, text } from "../theme";
+import { spacing, useAppTheme } from "../theme";
 import { money } from "../utils/money";
 import { readableDate } from "../utils/date";
 
@@ -14,8 +14,12 @@ type TransactionRowProps = {
 };
 
 export const TransactionRow = ({ transaction, category, trailing, onPress }: TransactionRowProps) => {
-  const color = category?.color ?? (transaction.type === "income" ? colors.income : colors.expense);
+  const { colors, text } = useAppTheme();
+  const fallbackColor =
+    transaction.type === "income" ? colors.income : transaction.type === "loan" ? colors.loan : colors.expense;
+  const color = category?.color ?? fallbackColor;
   const sign = transaction.type === "income" ? "+" : "-";
+  const metaPrefix = transaction.type === "loan" && transaction.repaidAt ? "Returned" : category?.name ?? "Uncategorized";
 
   return (
     <View style={styles.row}>
@@ -30,14 +34,14 @@ export const TransactionRow = ({ transaction, category, trailing, onPress }: Tra
           <Ionicons name={(category?.icon as keyof typeof Ionicons.glyphMap) ?? "cash"} size={20} color={color} />
         </View>
         <View style={styles.copy}>
-          <Text style={styles.merchant} numberOfLines={1}>
+          <Text style={[styles.merchant, text.body]} numberOfLines={1}>
             {transaction.merchant}
           </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {category?.name ?? "Uncategorized"} - {readableDate(transaction.occurredAt)}
+          <Text style={[styles.meta, text.muted]} numberOfLines={1}>
+            {metaPrefix} - {readableDate(transaction.occurredAt)}
           </Text>
         </View>
-        <Text style={[styles.amount, { color: transaction.type === "income" ? colors.income : colors.expense }]}>
+        <Text style={[styles.amount, { color: fallbackColor }]}>
           {sign}
           {money(transaction.amount)}
         </Text>
@@ -78,11 +82,10 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   merchant: {
-    ...text.body,
+    fontSize: 15,
     fontWeight: "800"
   },
   meta: {
-    ...text.muted,
     marginTop: 3
   },
   amount: {

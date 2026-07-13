@@ -1,9 +1,8 @@
 import { NavigationContainer } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Platform, StatusBar as NativeStatusBar, StyleSheet, View } from "react-native";
-import { useEffect } from "react";
+import { ActivityIndicator, Platform, StatusBar as NativeStatusBar, StyleSheet, useColorScheme, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AddCategoryModal } from "./src/components/AddCategoryModal";
 import { AddRecurringPaymentModal } from "./src/components/AddRecurringPaymentModal";
@@ -12,8 +11,8 @@ import { AuthScreen } from "./src/screens/AuthScreen";
 import { BottomTabs } from "./src/navigation/BottomTabs";
 import { useAppStore } from "./src/store/useAppStore";
 import { api, queryKeys, setAuthToken, trackEvent } from "./src/api/client";
-import { authTokenKey } from "./src/auth/storage";
-import { colors } from "./src/theme";
+import { authTokenKey, themePreferenceKey } from "./src/auth/storage";
+import { createAppTheme, ThemeContext } from "./src/theme";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,11 +24,14 @@ const queryClient = new QueryClient({
 });
 
 const AppContent = () => {
+  const [isThemeReady, setThemeReady] = useState(false);
+  const systemScheme = useColorScheme();
   const isAuthReady = useAppStore((state) => state.isAuthReady);
   const user = useAppStore((state) => state.user);
   const isAddModalOpen = useAppStore((state) => state.isAddModalOpen);
   const isCategoryModalOpen = useAppStore((state) => state.isCategoryModalOpen);
   const isRecurringModalOpen = useAppStore((state) => state.isRecurringModalOpen);
+  const themePreference = useAppStore((state) => state.themePreference);
   const openAddModal = useAppStore((state) => state.openAddModal);
   const closeAddModal = useAppStore((state) => state.closeAddModal);
   const closeCategoryModal = useAppStore((state) => state.closeCategoryModal);
@@ -37,12 +39,37 @@ const AppContent = () => {
   const setAuthReady = useAppStore((state) => state.setAuthReady);
   const signIn = useAppStore((state) => state.signIn);
   const signOut = useAppStore((state) => state.signOut);
+  const setThemePreference = useAppStore((state) => state.setThemePreference);
+  const resolvedTheme = themePreference === "system" ? (systemScheme === "dark" ? "dark" : "light") : themePreference;
+  const appTheme = useMemo(() => createAppTheme(resolvedTheme), [resolvedTheme]);
+  const palette = appTheme.colors;
 
   useEffect(() => {
     if (Platform.OS === "android") {
-      NativeStatusBar.setBackgroundColor("#F7FAFC");
+      NativeStatusBar.setBackgroundColor(palette.background);
+      NativeStatusBar.setBarStyle(appTheme.isDark ? "light-content" : "dark-content");
     }
-  }, []);
+  }, [appTheme.isDark, palette.background]);
+
+  useEffect(() => {
+    const restoreThemePreference = async () => {
+      const stored = await AsyncStorage.getItem(themePreferenceKey);
+      if (stored === "system" || stored === "light" || stored === "dark") {
+        setThemePreference(stored);
+      }
+      setThemeReady(true);
+    };
+
+    void restoreThemePreference();
+  }, [setThemePreference]);
+
+  useEffect(() => {
+    if (!isThemeReady) {
+      return;
+    }
+
+    void AsyncStorage.setItem(themePreferenceKey, themePreference);
+  }, [isThemeReady, themePreference]);
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -78,7 +105,7 @@ const AppContent = () => {
 
     void queryClient.prefetchQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
     trackEvent("app_open", { platform: "android-first" });
-    const timer = setTimeout(openAddModal, 350);
+    const timer = setTimeout(() => openAddModal(), 350);
     return () => clearTimeout(timer);
   }, [openAddModal, user]);
 
@@ -110,31 +137,31 @@ const AppContent = () => {
 
   if (!isAuthReady) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
+      <ThemeContext.Provider value={appTheme}>
+        <View style={[styles.loading, { backgroundColor: palette.background }]}>
+          <ActivityIndicator color={palette.primary} />
+        </View>
+      </ThemeContext.Provider>
     );
   }
 
   if (!user) {
     return (
-      <>
+      <ThemeContext.Provider value={appTheme}>
         <AuthScreen />
-        <StatusBar style="dark" />
-      </>
+      </ThemeContext.Provider>
     );
   }
 
   return (
-    <>
-      <NavigationContainer>
+    <ThemeContext.Provider value={appTheme}>
+      <NavigationContainer theme={appTheme.navigation}>
         <BottomTabs />
       </NavigationContainer>
       <AddTransactionModal visible={isAddModalOpen} onClose={closeAddModal} />
       <AddCategoryModal visible={isCategoryModalOpen} onClose={closeCategoryModal} />
       <AddRecurringPaymentModal visible={isRecurringModalOpen} onClose={closeRecurringModal} />
-      <StatusBar style="dark" />
-    </>
+    </ThemeContext.Provider>
   );
 };
 
@@ -142,8 +169,7 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.background
+    justifyContent: "center"
   }
 });
 
