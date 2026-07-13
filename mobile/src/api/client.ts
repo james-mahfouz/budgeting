@@ -23,6 +23,17 @@ type RequestOptions = {
 
 let authToken: string | null = null;
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+    readonly email?: string
+  ) {
+    super(message);
+  }
+}
+
 export const setAuthToken = (token: string | null) => {
   authToken = token;
 };
@@ -40,14 +51,20 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
+    let code: string | undefined;
+    let email: string | undefined;
     try {
       const error = (await response.json()) as {
         error?: string;
+        code?: string;
+        email?: string;
         details?: {
           formErrors?: string[];
           fieldErrors?: Record<string, string[]>;
         };
       };
+      code = error.code;
+      email = error.email;
       const fieldErrors = error.details?.fieldErrors
         ? Object.entries(error.details.fieldErrors)
             .flatMap(([field, errors]) => {
@@ -62,7 +79,7 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
       // Keep the generic status message when the response is not JSON.
     }
 
-    throw new Error(message);
+    throw new ApiError(message, response.status, code, email);
   }
 
   if (response.status === 204) {

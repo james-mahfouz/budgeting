@@ -17,7 +17,7 @@ services:
       CORS_ORIGIN: "${CORS_ORIGIN:-*}"
       LBP_PER_USD: "${LBP_PER_USD:-89500}"
     ports:
-      - "${HOST_PORT:-4000}:${PORT:-4000}"
+      - "127.0.0.1:${HOST_PORT:-4000}:${PORT:-4000}"
     volumes:
       - backend-data:/app/backend/data
 

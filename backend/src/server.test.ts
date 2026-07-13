@@ -40,6 +40,8 @@ describe("auth protected API", () => {
       url: "/api/auth/register",
       payload: { name: "Other", username: "other@example.com", password: "password123" }
     });
+    expect(registerA.statusCode).toBe(201);
+    expect(registerB.statusCode).toBe(201);
     const authA = registerA.json<{ token: string }>();
     const authB = registerB.json<{ token: string }>();
 

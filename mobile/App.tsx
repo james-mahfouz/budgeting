@@ -55,6 +55,9 @@ const AppContent = () => {
       try {
         setAuthToken(token);
         const refreshed = await api.refresh();
+        if (!refreshed.token || !refreshed.user) {
+          throw new Error("Session refresh did not return a token");
+        }
         setAuthToken(refreshed.token);
         await AsyncStorage.setItem(authTokenKey, refreshed.token);
         signIn(refreshed.user);
@@ -87,6 +90,9 @@ const AppContent = () => {
     const refreshSession = async () => {
       try {
         const refreshed = await api.refresh();
+        if (!refreshed.token || !refreshed.user) {
+          throw new Error("Session refresh did not return a token");
+        }
         setAuthToken(refreshed.token);
         await AsyncStorage.setItem(authTokenKey, refreshed.token);
         signIn(refreshed.user);

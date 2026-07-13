@@ -20,7 +20,15 @@ import {
   updateCategorySchema
 } from "./validation.js";
 import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
-import { createRawToken, hashPassword, hashToken, isSessionActive, publicUser, sessionExpiry, verifyPassword } from "./services/auth.js";
+import {
+  createRawToken,
+  hashPassword,
+  hashToken,
+  isSessionActive,
+  publicUser,
+  sessionExpiry,
+  verifyPassword
+} from "./services/auth.js";
 import { normalizeMoney } from "./services/currency.js";
 import { currentMonth } from "./services/date.js";
 import { addInterval, hasDueRecurringPayments, nextScheduledRun, processDueRecurringPayments } from "./services/recurring.js";
