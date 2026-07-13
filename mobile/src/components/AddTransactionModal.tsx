@@ -35,6 +35,7 @@ const typeOptions: Array<{ label: string; value: TransactionType; icon: keyof ty
 export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalProps) => {
   const queryClient = useQueryClient();
   const openCategoryModal = useAppStore((state) => state.openCategoryModal);
+  const editingTransaction = useAppStore((state) => state.editingTransaction);
   const [type, setType] = useState<TransactionType>("expense");
   const [currency, setCurrency] = useState<Currency>("USD");
   const [amount, setAmount] = useState("");
@@ -62,6 +63,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
     () => categoriesByType[type],
     [categoriesByType, type]
   );
+  const isEditing = Boolean(editingTransaction);
 
   const changeType = (nextType: TransactionType) => {
     setType(nextType);
@@ -69,6 +71,10 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   };
 
   useEffect(() => {
+    if (!filteredCategories.length) {
+      return;
+    }
+
     const stillValid = filteredCategories.some((category) => category.id === categoryId);
     if (!stillValid) {
       setCategoryId(filteredCategories[0]?.id ?? null);
@@ -76,10 +82,24 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   }, [categoryId, filteredCategories]);
 
   useEffect(() => {
-    if (visible) {
-      trackEvent("add_transaction_opened", { source: "modal" });
+    if (!visible) {
+      return;
     }
-  }, [visible]);
+
+    if (editingTransaction) {
+      setType(editingTransaction.type);
+      setCurrency(editingTransaction.currency ?? "USD");
+      setAmount(String(editingTransaction.originalAmount ?? editingTransaction.amount));
+      setMerchant(editingTransaction.merchant);
+      setNote(editingTransaction.note ?? "");
+      setCategoryId(editingTransaction.categoryId);
+      trackEvent("edit_transaction_opened", { source: "transactions" });
+      return;
+    }
+
+    resetForm();
+    trackEvent("add_transaction_opened", { source: "modal" });
+  }, [editingTransaction, visible]);
 
   const resetForm = () => {
     setType("expense");
@@ -91,8 +111,10 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   };
 
   const mutation = useMutation({
-    mutationFn: api.createTransaction,
+    mutationFn: (input: Parameters<typeof api.createTransaction>[0]) =>
+      editingTransaction ? api.updateTransaction(editingTransaction.id, input) : api.createTransaction(input),
     onSuccess: async () => {
+      trackEvent(editingTransaction ? "transaction_updated" : "transaction_created");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
         queryClient.invalidateQueries({ queryKey: queryKeys.summary(month) }),
@@ -109,7 +131,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   });
 
   const close = () => {
-    trackEvent("add_transaction_closed");
+    trackEvent(editingTransaction ? "edit_transaction_closed" : "add_transaction_closed");
     onClose();
   };
 
@@ -138,7 +160,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
       categoryId,
       merchant: merchant.trim(),
       note: note.trim() || undefined,
-      occurredAt: new Date().toISOString()
+      occurredAt: editingTransaction?.occurredAt ?? new Date().toISOString()
     });
   };
 
@@ -150,8 +172,8 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
           <View style={styles.handle} />
           <View style={styles.header}>
             <View>
-              <Text style={styles.title}>Add transaction</Text>
-              <Text style={styles.subtitle}>Track income and expenses in USD.</Text>
+              <Text style={styles.title}>{isEditing ? "Edit transaction" : "Add transaction"}</Text>
+              <Text style={styles.subtitle}>{isEditing ? "Update amount, category, or details." : "Track income and expenses in USD."}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={close} style={styles.closeButton}>
               <Ionicons name="close" size={22} color={colors.ink} />
@@ -274,7 +296,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color={colors.surface} />
-                  <Text style={styles.submitText}>Save transaction</Text>
+                  <Text style={styles.submitText}>{isEditing ? "Update transaction" : "Save transaction"}</Text>
                 </>
               )}
             </Pressable>

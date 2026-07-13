@@ -94,6 +94,8 @@ export type CreateTransactionInput = {
   occurredAt?: string;
 };
 
+export type UpdateTransactionInput = CreateTransactionInput;
+
 export type CreateCategoryInput = {
   name: string;
   kind: TransactionType;

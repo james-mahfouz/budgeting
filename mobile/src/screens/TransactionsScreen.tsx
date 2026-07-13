@@ -26,6 +26,7 @@ export const TransactionsScreen = () => {
   useScreenTracking("transactions");
   const [filter, setFilter] = useState<Filter>("all");
   const openAddModal = useAppStore((state) => state.openAddModal);
+  const openEditTransactionModal = useAppStore((state) => state.openEditTransactionModal);
   const queryClient = useQueryClient();
   const month = currentMonth();
 
@@ -105,14 +106,17 @@ export const TransactionsScreen = () => {
                 key={transaction.id}
                 transaction={transaction}
                 category={categoriesById.get(transaction.categoryId)}
+                onPress={() => openEditTransactionModal(transaction)}
                 trailing={
-                  <IconButton
-                    name="trash-outline"
-                    label="Delete transaction"
-                    onPress={() => confirmDelete(transaction.id)}
-                    color={colors.danger}
-                    backgroundColor="#FEF3F2"
-                  />
+                  <View style={styles.rowActions}>
+                    <IconButton
+                      name="trash-outline"
+                      label="Delete transaction"
+                      onPress={() => confirmDelete(transaction.id)}
+                      color={colors.danger}
+                      backgroundColor="#FEF3F2"
+                    />
+                  </View>
                 }
               />
             ))
@@ -160,5 +164,9 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     paddingBottom: 112
+  },
+  rowActions: {
+    flexDirection: "row",
+    gap: spacing.xs
   }
 });

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Category, Transaction } from "../types";
 import { colors, spacing, text } from "../theme";
 import { money } from "../utils/money";
@@ -10,29 +10,38 @@ type TransactionRowProps = {
   transaction: Transaction;
   category?: Category;
   trailing?: ReactNode;
+  onPress?: () => void;
 };
 
-export const TransactionRow = ({ transaction, category, trailing }: TransactionRowProps) => {
+export const TransactionRow = ({ transaction, category, trailing, onPress }: TransactionRowProps) => {
   const color = category?.color ?? (transaction.type === "income" ? colors.income : colors.expense);
   const sign = transaction.type === "income" ? "+" : "-";
 
   return (
     <View style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: `${color}1A` }]}>
-        <Ionicons name={(category?.icon as keyof typeof Ionicons.glyphMap) ?? "cash"} size={20} color={color} />
-      </View>
-      <View style={styles.copy}>
-        <Text style={styles.merchant} numberOfLines={1}>
-          {transaction.merchant}
+      <Pressable
+        accessibilityRole={onPress ? "button" : undefined}
+        accessibilityLabel={onPress ? `Edit ${transaction.merchant}` : undefined}
+        disabled={!onPress}
+        onPress={onPress}
+        style={({ pressed }) => [styles.rowPressTarget, pressed && styles.rowPressed]}
+      >
+        <View style={[styles.icon, { backgroundColor: `${color}1A` }]}>
+          <Ionicons name={(category?.icon as keyof typeof Ionicons.glyphMap) ?? "cash"} size={20} color={color} />
+        </View>
+        <View style={styles.copy}>
+          <Text style={styles.merchant} numberOfLines={1}>
+            {transaction.merchant}
+          </Text>
+          <Text style={styles.meta} numberOfLines={1}>
+            {category?.name ?? "Uncategorized"} - {readableDate(transaction.occurredAt)}
+          </Text>
+        </View>
+        <Text style={[styles.amount, { color: transaction.type === "income" ? colors.income : colors.expense }]}>
+          {sign}
+          {money(transaction.amount)}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {category?.name ?? "Uncategorized"} - {readableDate(transaction.occurredAt)}
-        </Text>
-      </View>
-      <Text style={[styles.amount, { color: transaction.type === "income" ? colors.income : colors.expense }]}>
-        {sign}
-        {money(transaction.amount)}
-      </Text>
+      </Pressable>
       {trailing}
     </View>
   );
@@ -45,6 +54,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.md,
     paddingVertical: spacing.sm
+  },
+  rowPressTarget: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md
+  },
+  rowPressed: {
+    opacity: 0.72
   },
   icon: {
     width: 44,

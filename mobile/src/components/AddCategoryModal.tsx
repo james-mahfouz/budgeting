@@ -26,7 +26,32 @@ type AddCategoryModalProps = {
 };
 
 const defaultColor = "#0E9384";
-const colorOptions = [defaultColor, "#2563EB", "#DD6B20", "#805AD5", "#D53F8C", "#2F855A", "#4A5568"];
+const colorOptions = [
+  defaultColor,
+  "#2563EB",
+  "#7C3AED",
+  "#DB2777",
+  "#E11D48",
+  "#DC2626",
+  "#EA580C",
+  "#D97706",
+  "#CA8A04",
+  "#65A30D",
+  "#16A34A",
+  "#059669",
+  "#0891B2",
+  "#0284C7",
+  "#4F46E5",
+  "#9333EA",
+  "#C026D3",
+  "#475569",
+  "#64748B",
+  "#0F766E",
+  "#2F855A",
+  "#805AD5",
+  "#D53F8C",
+  "#4A5568"
+];
 const iconOptions: Array<keyof typeof Ionicons.glyphMap> = [
   "pricetag",
   "cart",
@@ -37,7 +62,53 @@ const iconOptions: Array<keyof typeof Ionicons.glyphMap> = [
   "bag",
   "ticket",
   "wallet",
-  "briefcase"
+  "briefcase",
+  "cash",
+  "card",
+  "receipt",
+  "cafe",
+  "fast-food",
+  "pizza",
+  "beer",
+  "fitness",
+  "heart",
+  "school",
+  "book",
+  "bus",
+  "train",
+  "airplane",
+  "bicycle",
+  "construct",
+  "phone-portrait",
+  "game-controller",
+  "musical-notes",
+  "shirt",
+  "gift",
+  "wifi",
+  "flash",
+  "water",
+  "bulb",
+  "hammer",
+  "build",
+  "laptop",
+  "desktop",
+  "globe",
+  "calendar",
+  "shield-checkmark",
+  "bed",
+  "storefront",
+  "business",
+  "film",
+  "sparkles",
+  "leaf",
+  "barbell",
+  "medkit",
+  "calculator",
+  "stats-chart",
+  "trophy",
+  "camera",
+  "color-palette",
+  "cloud"
 ];
 
 export const AddCategoryModal = ({ visible, onClose }: AddCategoryModalProps) => {
@@ -302,12 +373,12 @@ const styles = StyleSheet.create({
   swatches: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.md
+    gap: spacing.sm
   },
   swatch: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 3,
     borderColor: colors.surface
   },
@@ -320,9 +391,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,

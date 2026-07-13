@@ -24,6 +24,8 @@ export const createTransactionSchema = z.object({
   occurredAt: z.string().datetime().optional()
 });
 
+export const updateTransactionSchema = createTransactionSchema;
+
 export const createCategorySchema = z.object({
   name: z.string().trim().min(2).max(40),
   kind: z.enum(["income", "expense"]),

@@ -17,7 +17,8 @@ import {
   loginSchema,
   registerSchema,
   transactionQuerySchema,
-  updateCategorySchema
+  updateCategorySchema,
+  updateTransactionSchema
 } from "./validation.js";
 import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
 import {
@@ -452,6 +453,68 @@ export const buildServer = async (store: JsonStore) => {
     });
 
     reply.code(201).send({ transaction });
+  });
+
+  app.put("/api/transactions/:id", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const input = parseOrReply(updateTransactionSchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const db = store.snapshot;
+    const category = db.categories.find((item) => item.id === input.categoryId && item.userId === user.id);
+
+    if (!category || category.kind !== input.type) {
+      reply.code(422).send({ error: "Category does not match the transaction type" });
+      return;
+    }
+
+    const id = (request.params as { id: string }).id;
+    const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
+    const now = new Date().toISOString();
+    let transaction: Transaction | undefined;
+
+    await store.update((data) => {
+      transaction = data.transactions.find((item) => item.id === id && item.userId === user.id);
+      if (!transaction) {
+        return;
+      }
+
+      transaction.type = input.type;
+      transaction.amount = money.amount;
+      transaction.currency = money.currency;
+      transaction.originalAmount = money.originalAmount;
+      transaction.exchangeRate = money.exchangeRate;
+      transaction.categoryId = input.categoryId;
+      transaction.merchant = input.merchant;
+      transaction.note = input.note;
+      transaction.occurredAt = input.occurredAt ?? transaction.occurredAt;
+
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: "transaction_updated",
+        payload: {
+          transactionId: transaction.id,
+          type: transaction.type,
+          amount: transaction.amount,
+          currency: transaction.currency
+        },
+        createdAt: now
+      });
+    });
+
+    if (!transaction) {
+      reply.code(404).send({ error: "Transaction not found" });
+      return;
+    }
+
+    reply.send({ transaction });
   });
 
   app.get("/api/recurring-payments", async (request, reply) => {

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Category, User } from "../types";
+import type { Category, Transaction, User } from "../types";
 
 type AppStore = {
   isAuthReady: boolean;
@@ -8,10 +8,12 @@ type AppStore = {
   isCategoryModalOpen: boolean;
   isRecurringModalOpen: boolean;
   editingCategory: Category | null;
+  editingTransaction: Transaction | null;
   setAuthReady: (ready: boolean) => void;
   signIn: (user: User) => void;
   signOut: () => void;
   openAddModal: () => void;
+  openEditTransactionModal: (transaction: Transaction) => void;
   closeAddModal: () => void;
   openCategoryModal: () => void;
   openEditCategoryModal: (category: Category) => void;
@@ -27,6 +29,7 @@ export const useAppStore = create<AppStore>((set) => ({
   isCategoryModalOpen: false,
   isRecurringModalOpen: false,
   editingCategory: null,
+  editingTransaction: null,
   setAuthReady: (ready) => set({ isAuthReady: ready }),
   signIn: (user) => set({ user, isAuthReady: true }),
   signOut: () =>
@@ -36,10 +39,12 @@ export const useAppStore = create<AppStore>((set) => ({
       isAddModalOpen: false,
       isCategoryModalOpen: false,
       isRecurringModalOpen: false,
-      editingCategory: null
+      editingCategory: null,
+      editingTransaction: null
     }),
-  openAddModal: () => set({ isAddModalOpen: true }),
-  closeAddModal: () => set({ isAddModalOpen: false }),
+  openAddModal: () => set({ isAddModalOpen: true, editingTransaction: null }),
+  openEditTransactionModal: (transaction) => set({ isAddModalOpen: true, editingTransaction: transaction }),
+  closeAddModal: () => set({ isAddModalOpen: false, editingTransaction: null }),
   openCategoryModal: () => set({ isCategoryModalOpen: true, editingCategory: null }),
   openEditCategoryModal: (category) => set({ isCategoryModalOpen: true, editingCategory: category }),
   closeCategoryModal: () => set({ isCategoryModalOpen: false, editingCategory: null }),

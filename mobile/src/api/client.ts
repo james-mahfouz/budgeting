@@ -10,7 +10,8 @@ import type {
   DashboardSummary,
   RecurringPayment,
   Transaction,
-  UpdateCategoryInput
+  UpdateCategoryInput,
+  UpdateTransactionInput
 } from "../types";
 
 export const API_URL =
@@ -106,6 +107,8 @@ export const api = {
   transactions: (limit = 50) => request<{ transactions: Transaction[] }>(`/api/transactions?limit=${limit}`),
   createTransaction: (input: CreateTransactionInput) =>
     request<{ transaction: Transaction }>("/api/transactions", { method: "POST", body: input }),
+  updateTransaction: (id: string, input: UpdateTransactionInput) =>
+    request<{ transaction: Transaction }>(`/api/transactions/${id}`, { method: "PUT", body: input }),
   deleteTransaction: (id: string) => request<void>(`/api/transactions/${id}`, { method: "DELETE" }),
   recurringPayments: () => request<{ recurringPayments: RecurringPayment[] }>("/api/recurring-payments"),
   createRecurringPayment: (input: CreateRecurringPaymentInput) =>
