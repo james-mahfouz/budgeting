@@ -10,8 +10,13 @@ import { AddTransactionModal } from "./src/components/AddTransactionModal";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { BottomTabs } from "./src/navigation/BottomTabs";
 import { useAppStore } from "./src/store/useAppStore";
-import { api, queryKeys, setAuthToken, trackEvent } from "./src/api/client";
-import { authTokenKey, themePreferenceKey } from "./src/auth/storage";
+import { ApiError, api, queryKeys, setAuthToken, trackEvent } from "./src/api/client";
+import {
+  clearStoredAuthSession,
+  loadStoredAuthSession,
+  saveStoredAuthSession,
+  themePreferenceKey
+} from "./src/auth/storage";
 import { createAppTheme, ThemeContext } from "./src/theme";
 
 const queryClient = new QueryClient({
@@ -72,30 +77,59 @@ const AppContent = () => {
   }, [isThemeReady, themePreference]);
 
   useEffect(() => {
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
     const restoreSession = async () => {
-      const token = await AsyncStorage.getItem(authTokenKey);
-      if (!token) {
+      const stored = await loadStoredAuthSession();
+      if (cancelled) {
+        return;
+      }
+
+      if (!stored) {
         setAuthReady(true);
         return;
       }
 
+      setAuthToken(stored.token);
+
+      if (stored.user) {
+        signIn(stored.user);
+        return;
+      }
+
+      // Older versions stored only the token. Fetch the user once and cache it so
+      // all future launches can restore the session even while the server is offline.
       try {
-        setAuthToken(token);
-        const refreshed = await api.refresh();
-        if (!refreshed.token || !refreshed.user) {
-          throw new Error("Session refresh did not return a token");
+        const { user: restoredUser } = await api.me();
+        if (cancelled) {
+          return;
         }
-        setAuthToken(refreshed.token);
-        await AsyncStorage.setItem(authTokenKey, refreshed.token);
-        signIn(refreshed.user);
-      } catch {
-        setAuthToken(null);
-        await AsyncStorage.removeItem(authTokenKey);
-        signOut();
+        await saveStoredAuthSession(stored.token, restoredUser);
+        signIn(restoredUser);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthToken(null);
+          await clearStoredAuthSession();
+          signOut();
+          return;
+        }
+
+        retryTimer = setTimeout(() => void restoreSession(), 5_000);
       }
     };
 
     void restoreSession();
+    return () => {
+      cancelled = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+    };
   }, [setAuthReady, signIn, signOut]);
 
   useEffect(() => {
@@ -108,32 +142,6 @@ const AppContent = () => {
     const timer = setTimeout(() => openAddModal(), 350);
     return () => clearTimeout(timer);
   }, [openAddModal, user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    const refreshSession = async () => {
-      try {
-        const refreshed = await api.refresh();
-        if (!refreshed.token || !refreshed.user) {
-          throw new Error("Session refresh did not return a token");
-        }
-        setAuthToken(refreshed.token);
-        await AsyncStorage.setItem(authTokenKey, refreshed.token);
-        signIn(refreshed.user);
-      } catch {
-        setAuthToken(null);
-        await AsyncStorage.removeItem(authTokenKey);
-        queryClient.clear();
-        signOut();
-      }
-    };
-
-    const interval = setInterval(() => void refreshSession(), 12 * 60 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [signIn, signOut, user]);
 
   if (!isAuthReady) {
     return (

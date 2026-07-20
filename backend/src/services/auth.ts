@@ -1,8 +1,8 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import type { AuthSession, User } from "../types.js";
+import type { User } from "../types.js";
 
 const keyLength = 64;
-const tokenTtlDays = 365;
+const persistentSessionExpiry = "9999-12-31T23:59:59.999Z";
 
 export const publicUser = (user: User) => ({
   id: user.id,
@@ -32,10 +32,6 @@ export const createRawToken = () => randomBytes(32).toString("base64url");
 
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
-export const sessionExpiry = (from = new Date()) => {
-  const expiresAt = new Date(from);
-  expiresAt.setUTCDate(expiresAt.getUTCDate() + tokenTtlDays);
-  return expiresAt.toISOString();
-};
-
-export const isSessionActive = (session: AuthSession, now = new Date()) => session.expiresAt > now.toISOString();
+// Sessions are revoked only by explicit logout. Keep expiresAt in the stored shape
+// for backwards compatibility with existing data files.
+export const sessionExpiry = () => persistentSessionExpiry;

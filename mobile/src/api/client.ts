@@ -94,6 +94,7 @@ export const api = {
   login: (input: { username: string; password: string }) =>
     request<AuthResponse>("/api/auth/login", { method: "POST", body: input }),
   refresh: () => request<AuthResponse>("/api/auth/refresh", { method: "POST" }),
+  me: () => request<{ user: AuthResponse["user"] }>("/api/auth/me"),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   categories: () => request<{ categories: Category[] }>("/api/categories"),
   createCategory: (input: CreateCategoryInput) =>

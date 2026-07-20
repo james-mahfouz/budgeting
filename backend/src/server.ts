@@ -25,7 +25,6 @@ import {
   createRawToken,
   hashPassword,
   hashToken,
-  isSessionActive,
   publicUser,
   sessionExpiry,
   verifyPassword
@@ -118,11 +117,10 @@ export const buildServer = async (store: JsonStore) => {
       tokenHash: hashToken(token),
       createdAt: now,
       lastUsedAt: now,
-      expiresAt: sessionExpiry(new Date(now))
+      expiresAt: sessionExpiry()
     };
 
     await store.update((data) => {
-      data.sessions = data.sessions.filter((item) => isSessionActive(item));
       data.sessions.push(session);
     });
 
@@ -137,7 +135,7 @@ export const buildServer = async (store: JsonStore) => {
     }
 
     const db = store.snapshot;
-    const session = db.sessions.find((item) => item.tokenHash === hashToken(token) && isSessionActive(item));
+    const session = db.sessions.find((item) => item.tokenHash === hashToken(token));
     if (!session) {
       return null;
     }
@@ -228,8 +226,6 @@ export const buildServer = async (store: JsonStore) => {
       return;
     }
 
-    const token = createRawToken();
-    const tokenHash = hashToken(token);
     const now = new Date().toISOString();
     await store.update((data) => {
       const session = data.sessions.find((item) => item.id === auth.session.id && item.userId === auth.user.id);
@@ -237,12 +233,11 @@ export const buildServer = async (store: JsonStore) => {
         return;
       }
 
-      session.tokenHash = tokenHash;
       session.lastUsedAt = now;
-      session.expiresAt = sessionExpiry(new Date(now));
+      session.expiresAt = sessionExpiry();
     });
 
-    reply.send({ token, user: publicUser(auth.user) });
+    reply.send({ token: auth.token, user: publicUser(auth.user) });
   });
 
   app.get("/api/auth/me", async (request, reply) => {

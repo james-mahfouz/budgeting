@@ -13,6 +13,13 @@ const createApp = async () => {
   return buildServer(store);
 };
 
+const createAppWithStore = async () => {
+  tempDir = await mkdtemp(join(tmpdir(), "budgeting-test-"));
+  const store = new JsonStore(join(tempDir, "db.json"));
+  const app = await buildServer(store);
+  return { app, store };
+};
+
 afterEach(async () => {
   if (tempDir) {
     await rm(tempDir, { recursive: true, force: true });
@@ -66,6 +73,50 @@ describe("auth protected API", () => {
 
     expect(categoriesA.json<{ categories: Array<{ name: string }> }>().categories.some((item) => item.name === "Private")).toBe(true);
     expect(categoriesB.json<{ categories: Array<{ name: string }> }>().categories.some((item) => item.name === "Private")).toBe(false);
+    await app.close();
+  });
+
+  it("keeps a session valid until explicit logout", async () => {
+    const { app, store } = await createAppWithStore();
+    const register = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { name: "James", username: "james-session@example.com", password: "password123" }
+    });
+    const auth = register.json<{ token: string }>();
+
+    await store.update((data) => {
+      data.sessions[0].expiresAt = "2000-01-01T00:00:00.000Z";
+    });
+
+    const restored = await app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${auth.token}` }
+    });
+    expect(restored.statusCode).toBe(200);
+
+    const refreshed = await app.inject({
+      method: "POST",
+      url: "/api/auth/refresh",
+      headers: { authorization: `Bearer ${auth.token}` }
+    });
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.json<{ token: string }>().token).toBe(auth.token);
+
+    const logout = await app.inject({
+      method: "POST",
+      url: "/api/auth/logout",
+      headers: { authorization: `Bearer ${auth.token}` }
+    });
+    expect(logout.statusCode).toBe(204);
+
+    const afterLogout = await app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${auth.token}` }
+    });
+    expect(afterLogout.statusCode).toBe(401);
     await app.close();
   });
 

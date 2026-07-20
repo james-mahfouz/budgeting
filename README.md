@@ -46,7 +46,7 @@ Android emulator uses `10.0.2.2` to reach your host machine. For a physical phon
 - `GET /api/analytics/cash-flow`
 - `POST /api/events`
 
-All `/api/*` routes except register and login require `Authorization: Bearer <token>`. Register creates a private default category set for that user. The mobile app stores the token locally and refreshes it automatically so the user stays logged in.
+All `/api/*` routes except register and login require `Authorization: Bearer <token>`. Register creates a private default category set for that user. Login sessions remain valid until the user explicitly logs out. The mobile app stores the token and user locally so temporary network or server failures never send the user back to login.
 
 The app stores analytics events as simple product events such as app open, screen view, modal close, transaction create, and sync refresh. No third-party analytics SDK is included, so privacy remains easy to reason about.
 

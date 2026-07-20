@@ -1,5 +1,4 @@
 import Ionicons from "react-native-vector-icons/Ionicons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useMemo, useState } from "react";
 import {
 	ActivityIndicator,
@@ -15,7 +14,7 @@ import {
 } from "react-native";
 import { useMutation } from "@tanstack/react-query";
 import { api, setAuthToken } from "../api/client";
-import { authTokenKey } from "../auth/storage";
+import { saveStoredAuthSession } from "../auth/storage";
 import { AppLogo } from "../components/AppLogo";
 import { Screen } from "../components/Screen";
 import { useAppStore } from "../store/useAppStore";
@@ -43,7 +42,7 @@ export const AuthScreen = () => {
 				: api.login({ username: normalizedEmail, password }),
 		onSuccess: async ({ token, user }) => {
 			setAuthToken(token);
-			await AsyncStorage.setItem(authTokenKey, token);
+			await saveStoredAuthSession(token, user);
 			signIn(user);
 		},
 		onError: (error) => {

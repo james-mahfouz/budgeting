@@ -1,10 +1,9 @@
 import Ionicons from "react-native-vector-icons/Ionicons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, setAuthToken, trackEvent } from "../api/client";
-import { authTokenKey } from "../auth/storage";
+import { clearStoredAuthSession } from "../auth/storage";
 import { API_URL } from "../config";
 import { EmptyState } from "../components/EmptyState";
 import { Header } from "../components/Header";
@@ -92,7 +91,7 @@ export const SettingsScreen = () => {
   const logout = async () => {
     await api.logout().catch(() => undefined);
     setAuthToken(null);
-    await AsyncStorage.removeItem(authTokenKey);
+    await clearStoredAuthSession();
     queryClient.clear();
     signOut();
   };
