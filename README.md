@@ -21,6 +21,18 @@ cd budgeting
 npm run dev:android
 ```
 
+Build a release APK from the project root:
+
+```bash
+npm run build:apk
+```
+
+The APK is created at `mobile/android/app/build/outputs/apk/release/app-release.apk`. To build and install the release directly on a USB-connected Android device, run:
+
+```bash
+npm run install:apk
+```
+
 Set `mobile/.env` if your Android emulator or physical device needs a different API URL.
 
 ```bash
