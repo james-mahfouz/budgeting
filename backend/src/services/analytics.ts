@@ -1,4 +1,4 @@
-import type { Category, DashboardSummary, Transaction } from "../types.js";
+import type { Category, DashboardSummary, Subcategory, Transaction } from "../types.js";
 import { currentMonth, monthBounds, monthLabel } from "./date.js";
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
@@ -58,6 +58,47 @@ export const spendingByCategory = (
       };
     })
     .filter((category) => category.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+};
+
+export const spendingBySubcategory = (
+  transactions: Transaction[],
+  categories: Category[],
+  subcategories: Subcategory[],
+  month = currentMonth()
+) => {
+  const monthlyExpenses = transactionsForMonth(transactions, month).filter((transaction) => transaction.type === "expense");
+  const categoryTotals = new Map<string, number>();
+  const subcategoryTotals = new Map<string, number>();
+  const categoriesById = new Map(categories.map((category) => [category.id, category]));
+
+  for (const transaction of monthlyExpenses) {
+    categoryTotals.set(transaction.categoryId, (categoryTotals.get(transaction.categoryId) ?? 0) + transaction.amount);
+    if (transaction.subcategoryId) {
+      subcategoryTotals.set(
+        transaction.subcategoryId,
+        (subcategoryTotals.get(transaction.subcategoryId) ?? 0) + transaction.amount
+      );
+    }
+  }
+
+  return subcategories
+    .filter((subcategory) => categoriesById.get(subcategory.categoryId)?.kind === "expense")
+    .map((subcategory) => {
+      const category = categoriesById.get(subcategory.categoryId);
+      const amount = subcategoryTotals.get(subcategory.id) ?? 0;
+      const categoryAmount = categoryTotals.get(subcategory.categoryId) ?? 0;
+      return {
+        subcategoryId: subcategory.id,
+        categoryId: subcategory.categoryId,
+        name: subcategory.name,
+        categoryName: category?.name ?? "Uncategorized",
+        color: category?.color ?? "#718096",
+        amount,
+        percentage: categoryAmount > 0 ? Math.round((amount / categoryAmount) * 100) : 0
+      };
+    })
+    .filter((subcategory) => subcategory.amount > 0)
     .sort((a, b) => b.amount - a.amount);
 };
 

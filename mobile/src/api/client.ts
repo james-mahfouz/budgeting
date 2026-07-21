@@ -10,6 +10,7 @@ import type {
   DashboardSummary,
   RecurringPayment,
   Subcategory,
+  SubcategorySpend,
   Transaction,
   UpdateCategoryInput,
   UpdateSubcategoryInput,
@@ -125,7 +126,7 @@ export const api = {
   deleteRecurringPayment: (id: string) => request<void>(`/api/recurring-payments/${id}`, { method: "DELETE" }),
   summary: (month: string) => request<{ summary: DashboardSummary }>(`/api/analytics/summary?month=${month}`),
   categorySpend: (month: string) =>
-    request<{ categories: CategorySpend[] }>(`/api/analytics/categories?month=${month}`),
+    request<{ categories: CategorySpend[]; subcategories: SubcategorySpend[] }>(`/api/analytics/categories?month=${month}`),
   cashFlow: () => request<{ cashFlow: CashFlowPoint[] }>("/api/analytics/cash-flow"),
   track: (name: string, payload?: Record<string, unknown>) =>
     request<{ event: unknown }>("/api/events", { method: "POST", body: { name, payload } })

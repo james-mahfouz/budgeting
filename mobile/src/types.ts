@@ -88,6 +88,16 @@ export type CategorySpend = {
   percentage: number;
 };
 
+export type SubcategorySpend = {
+  subcategoryId: string;
+  categoryId: string;
+  name: string;
+  categoryName: string;
+  color: string;
+  amount: number;
+  percentage: number;
+};
+
 export type CashFlowPoint = {
   month: string;
   income: number;

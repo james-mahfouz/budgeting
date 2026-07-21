@@ -23,8 +23,10 @@ export const AnalyticsScreen = () => {
 
   const summary = summaryQuery.data?.summary;
   const categorySpend = spendQuery.data?.categories ?? [];
+  const subcategorySpend = spendQuery.data?.subcategories ?? [];
   const cashFlow = cashFlowQuery.data?.cashFlow ?? [];
   const maxCategory = Math.max(...categorySpend.map((item) => item.amount), 1);
+  const maxSubcategory = Math.max(...subcategorySpend.map((item) => item.amount), 1);
   const maxCashFlow = Math.max(...cashFlow.map((item) => Math.max(item.income, item.expenses)), 1);
   const refreshing = summaryQuery.isRefetching || spendQuery.isRefetching || cashFlowQuery.isRefetching;
 
@@ -124,6 +126,41 @@ export const AnalyticsScreen = () => {
             ))
           ) : (
             <EmptyState icon="pie-chart" title="No breakdown" body="Expense categories populate this chart automatically." />
+          )}
+        </Panel>
+
+        <Panel title="Spending by subcategory">
+          {subcategorySpend.length ? (
+            subcategorySpend.map((item) => (
+              <View key={item.subcategoryId} style={styles.categoryRow}>
+                <View style={styles.categoryHeader}>
+                  <Text style={styles.categoryName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.categoryAmount}>{compactMoney(item.amount)}</Text>
+                </View>
+                <View style={styles.categoryTrack}>
+                  <View
+                    style={[
+                      styles.categoryFill,
+                      {
+                        backgroundColor: item.color,
+                        width: `${Math.max((item.amount / maxSubcategory) * 100, 4)}%`
+                      }
+                    ]}
+                  />
+                </View>
+                <Text style={styles.percentage}>
+                  {item.categoryName} · {item.percentage}% of category spending
+                </Text>
+              </View>
+            ))
+          ) : (
+            <EmptyState
+              icon="git-branch"
+              title="No subcategory spending"
+              body="Assign subcategories to expenses to populate this breakdown."
+            />
           )}
         </Panel>
       </ScrollView>

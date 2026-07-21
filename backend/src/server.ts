@@ -22,7 +22,7 @@ import {
   updateSubcategorySchema,
   updateTransactionSchema
 } from "./validation.js";
-import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
+import { cashFlowTrend, getDashboardSummary, spendingByCategory, spendingBySubcategory } from "./services/analytics.js";
 import {
   createRawToken,
   hashPassword,
@@ -1010,8 +1010,10 @@ export const buildServer = async (store: JsonStore) => {
     const db = store.snapshot;
     const transactions = db.transactions.filter((transaction) => transaction.userId === user.id);
     const categories = db.categories.filter((category) => category.userId === user.id);
+    const subcategories = db.subcategories.filter((subcategory) => subcategory.userId === user.id);
     return {
-      categories: spendingByCategory(transactions, categories, query.month ?? currentMonth())
+      categories: spendingByCategory(transactions, categories, query.month ?? currentMonth()),
+      subcategories: spendingBySubcategory(transactions, categories, subcategories, query.month ?? currentMonth())
     };
   });
 
