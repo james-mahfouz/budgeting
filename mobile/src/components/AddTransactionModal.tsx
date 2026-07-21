@@ -329,18 +329,12 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
                       <Ionicons name="add" size={16} color={colors.primary} />
                       <Text style={[styles.categoryText, styles.addCategoryText]}>New</Text>
                     </Pressable>
-                    <Pressable
-                      onPress={() => setSubcategoryId(null)}
-                      style={[styles.categoryChip, !subcategoryId && styles.optionalChipSelected]}
-                    >
-                      <Text style={styles.categoryText}>None</Text>
-                    </Pressable>
                     {filteredSubcategories.map((subcategory: Subcategory) => {
                       const selected = subcategory.id === subcategoryId;
                       return (
                         <Pressable
                           key={subcategory.id}
-                          onPress={() => setSubcategoryId(subcategory.id)}
+                          onPress={() => setSubcategoryId(selected ? null : subcategory.id)}
                           style={[styles.categoryChip, selected && styles.optionalChipSelected]}
                         >
                           <Text style={styles.categoryText}>{subcategory.name}</Text>
