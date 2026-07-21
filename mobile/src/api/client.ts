@@ -5,11 +5,14 @@ import type {
   CategorySpend,
   CreateCategoryInput,
   CreateRecurringPaymentInput,
+  CreateSubcategoryInput,
   CreateTransactionInput,
   DashboardSummary,
   RecurringPayment,
+  Subcategory,
   Transaction,
   UpdateCategoryInput,
+  UpdateSubcategoryInput,
   UpdateTransactionInput
 } from "../types";
 import { API_URL } from "../config";
@@ -102,6 +105,12 @@ export const api = {
   updateCategory: (id: string, input: UpdateCategoryInput) =>
     request<{ category: Category }>(`/api/categories/${id}`, { method: "PUT", body: input }),
   deleteCategory: (id: string) => request<void>(`/api/categories/${id}`, { method: "DELETE" }),
+  subcategories: () => request<{ subcategories: Subcategory[] }>("/api/subcategories"),
+  createSubcategory: (input: CreateSubcategoryInput) =>
+    request<{ subcategory: Subcategory }>("/api/subcategories", { method: "POST", body: input }),
+  updateSubcategory: (id: string, input: UpdateSubcategoryInput) =>
+    request<{ subcategory: Subcategory }>(`/api/subcategories/${id}`, { method: "PUT", body: input }),
+  deleteSubcategory: (id: string) => request<void>(`/api/subcategories/${id}`, { method: "DELETE" }),
   transactions: (limit = 50) => request<{ transactions: Transaction[] }>(`/api/transactions?limit=${limit}`),
   createTransaction: (input: CreateTransactionInput) =>
     request<{ transaction: Transaction }>("/api/transactions", { method: "POST", body: input }),
@@ -125,6 +134,7 @@ export const api = {
 export const queryKeys = {
   health: ["health"] as const,
   categories: ["categories"] as const,
+  subcategories: ["subcategories"] as const,
   transactions: ["transactions"] as const,
   recurringPayments: ["recurring-payments"] as const,
   summary: (month: string) => ["summary", month] as const,

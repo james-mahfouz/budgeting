@@ -107,6 +107,7 @@ const run = async () => {
     data.users = [user];
     data.sessions = [];
     data.categories = categoriesForUser(userId);
+    data.subcategories = [];
     data.transactions = transactions;
     data.recurringPayments = recurringPayments;
     data.events = [

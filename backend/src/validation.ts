@@ -19,6 +19,7 @@ export const createTransactionSchema = z.object({
   currency: z.enum(["USD", "LBP"]).default("USD"),
   exchangeRate: z.coerce.number().positive().max(1_000_000).optional(),
   categoryId: z.string().min(1),
+  subcategoryId: z.string().min(1).optional(),
   merchant: z.string().trim().min(1).max(80),
   note: z.string().trim().max(240).optional(),
   occurredAt: z.string().datetime().optional()
@@ -35,12 +36,20 @@ export const createCategorySchema = z.object({
 
 export const updateCategorySchema = createCategorySchema;
 
+export const createSubcategorySchema = z.object({
+  categoryId: z.string().min(1),
+  name: z.string().trim().min(2).max(40)
+});
+
+export const updateSubcategorySchema = createSubcategorySchema;
+
 export const createRecurringPaymentSchema = z.object({
   type: z.enum(["income", "expense", "loan"]),
   amount: z.coerce.number().positive().max(100_000_000_000),
   currency: z.enum(["USD", "LBP"]).default("USD"),
   exchangeRate: z.coerce.number().positive().max(1_000_000).optional(),
   categoryId: z.string().min(1),
+  subcategoryId: z.string().min(1).optional(),
   merchant: z.string().trim().min(1).max(80),
   note: z.string().trim().max(240).optional(),
   intervalUnit: z.enum(["day", "week", "month"]),

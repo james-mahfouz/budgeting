@@ -25,6 +25,7 @@ export const emptyDb: DbData = {
   users: [],
   sessions: [],
   categories: [],
+  subcategories: [],
   transactions: [],
   recurringPayments: [],
   events: []

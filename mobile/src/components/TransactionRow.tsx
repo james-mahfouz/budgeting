@@ -1,7 +1,7 @@
 import Ionicons from "react-native-vector-icons/Ionicons";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { Category, Transaction } from "../types";
+import type { Category, Subcategory, Transaction } from "../types";
 import { spacing, useAppTheme } from "../theme";
 import { money } from "../utils/money";
 import { readableDate } from "../utils/date";
@@ -9,17 +9,19 @@ import { readableDate } from "../utils/date";
 type TransactionRowProps = {
   transaction: Transaction;
   category?: Category;
+  subcategory?: Subcategory;
   trailing?: ReactNode;
   onPress?: () => void;
 };
 
-export const TransactionRow = ({ transaction, category, trailing, onPress }: TransactionRowProps) => {
+export const TransactionRow = ({ transaction, category, subcategory, trailing, onPress }: TransactionRowProps) => {
   const { colors, text } = useAppTheme();
   const fallbackColor =
     transaction.type === "income" ? colors.income : transaction.type === "loan" ? colors.loan : colors.expense;
   const color = category?.color ?? fallbackColor;
   const sign = transaction.type === "income" ? "+" : "-";
-  const metaPrefix = transaction.type === "loan" && transaction.repaidAt ? "Returned" : category?.name ?? "Uncategorized";
+  const categoryLabel = category ? `${category.name}${subcategory ? ` / ${subcategory.name}` : ""}` : "Uncategorized";
+  const metaPrefix = transaction.type === "loan" && transaction.repaidAt ? `Returned · ${categoryLabel}` : categoryLabel;
 
   return (
     <View style={styles.row}>

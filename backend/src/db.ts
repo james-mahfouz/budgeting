@@ -7,6 +7,7 @@ const cloneDb = (data: DbData): DbData => ({
   users: [...data.users],
   sessions: [...data.sessions],
   categories: [...data.categories],
+  subcategories: [...data.subcategories],
   transactions: [...data.transactions],
   recurringPayments: [...data.recurringPayments],
   events: [...data.events]
@@ -28,6 +29,7 @@ export class JsonStore {
         users: parsed.users ?? [],
         sessions: parsed.sessions ?? [],
         categories: parsed.categories?.length ? parsed.categories : emptyDb.categories,
+        subcategories: parsed.subcategories ?? [],
         transactions: parsed.transactions ?? [],
         recurringPayments: parsed.recurringPayments ?? [],
         events: parsed.events ?? []

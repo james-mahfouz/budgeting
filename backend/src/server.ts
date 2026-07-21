@@ -12,12 +12,14 @@ import {
   analyticsQuerySchema,
   createCategorySchema,
   createRecurringPaymentSchema,
+  createSubcategorySchema,
   createTransactionSchema,
   eventSchema,
   loginSchema,
   registerSchema,
   transactionQuerySchema,
   updateCategorySchema,
+  updateSubcategorySchema,
   updateTransactionSchema
 } from "./validation.js";
 import { cashFlowTrend, getDashboardSummary, spendingByCategory } from "./services/analytics.js";
@@ -32,7 +34,7 @@ import {
 import { normalizeMoney } from "./services/currency.js";
 import { currentMonth } from "./services/date.js";
 import { addInterval, hasDueRecurringPayments, nextScheduledRun, processDueRecurringPayments } from "./services/recurring.js";
-import type { AuthSession, Category, RecurringPayment, Transaction, User } from "./types.js";
+import type { AuthSession, Category, RecurringPayment, Subcategory, Transaction, User } from "./types.js";
 
 const slugify = (value: string) =>
   value
@@ -380,6 +382,17 @@ export const buildServer = async (store: JsonStore) => {
       }
 
       data.categories = nextCategories;
+      const removedSubcategoryIds = new Set(
+        data.subcategories.filter((subcategory) => subcategory.categoryId === id && subcategory.userId === user.id).map((item) => item.id)
+      );
+      data.subcategories = data.subcategories.filter(
+        (subcategory) => subcategory.categoryId !== id || subcategory.userId !== user.id
+      );
+      for (const transaction of data.transactions) {
+        if (transaction.userId === user.id && transaction.subcategoryId && removedSubcategoryIds.has(transaction.subcategoryId)) {
+          transaction.subcategoryId = undefined;
+        }
+      }
       data.recurringPayments = data.recurringPayments.filter((rule) => rule.categoryId !== id || rule.userId !== user.id);
       data.events.push({
         id: randomUUID(),
@@ -392,6 +405,169 @@ export const buildServer = async (store: JsonStore) => {
 
     if (!removed) {
       reply.code(404).send({ error: "Category not found" });
+      return;
+    }
+
+    reply.code(204).send();
+  });
+
+  app.get("/api/subcategories", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    return {
+      subcategories: store.snapshot.subcategories.filter((subcategory) => subcategory.userId === user.id)
+    };
+  });
+
+  app.post("/api/subcategories", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const input = parseOrReply(createSubcategorySchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const category = store.snapshot.categories.find((item) => item.id === input.categoryId && item.userId === user.id);
+    if (!category) {
+      reply.code(422).send({ error: "Category not found" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let subcategory: Subcategory | undefined;
+    await store.update((data) => {
+      const existingName = data.subcategories.find(
+        (item) =>
+          item.userId === user.id &&
+          item.categoryId === input.categoryId &&
+          item.name.toLowerCase() === input.name.toLowerCase()
+      );
+      if (existingName) {
+        subcategory = existingName;
+        return;
+      }
+
+      subcategory = {
+        id: randomUUID(),
+        userId: user.id,
+        categoryId: input.categoryId,
+        name: input.name
+      };
+      data.subcategories.push(subcategory);
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: "subcategory_created",
+        payload: { subcategoryId: subcategory.id, categoryId: input.categoryId },
+        createdAt: now
+      });
+    });
+
+    reply.code(201).send({ subcategory });
+  });
+
+  app.put("/api/subcategories/:id", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const id = (request.params as { id: string }).id;
+    const input = parseOrReply(updateSubcategorySchema.safeParse(request.body), reply);
+    if (!input) {
+      return;
+    }
+
+    const category = store.snapshot.categories.find((item) => item.id === input.categoryId && item.userId === user.id);
+    if (!category) {
+      reply.code(422).send({ error: "Category not found" });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let subcategory: Subcategory | undefined;
+    await store.update((data) => {
+      subcategory = data.subcategories.find((item) => item.id === id && item.userId === user.id);
+      if (!subcategory) {
+        return;
+      }
+
+      const previousCategoryId = subcategory.categoryId;
+      subcategory.categoryId = input.categoryId;
+      subcategory.name = input.name;
+      if (previousCategoryId !== input.categoryId) {
+        for (const transaction of data.transactions) {
+          if (transaction.userId === user.id && transaction.subcategoryId === id) {
+            transaction.subcategoryId = undefined;
+          }
+        }
+        for (const rule of data.recurringPayments) {
+          if (rule.userId === user.id && rule.subcategoryId === id) {
+            rule.subcategoryId = undefined;
+          }
+        }
+      }
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: "subcategory_updated",
+        payload: { subcategoryId: id, categoryId: input.categoryId },
+        createdAt: now
+      });
+    });
+
+    if (!subcategory) {
+      reply.code(404).send({ error: "Subcategory not found" });
+      return;
+    }
+
+    reply.send({ subcategory });
+  });
+
+  app.delete("/api/subcategories/:id", async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) {
+      return;
+    }
+
+    const id = (request.params as { id: string }).id;
+    const now = new Date().toISOString();
+    let removed = false;
+    await store.update((data) => {
+      const next = data.subcategories.filter((subcategory) => subcategory.id !== id || subcategory.userId !== user.id);
+      removed = next.length !== data.subcategories.length;
+      if (!removed) {
+        return;
+      }
+
+      data.subcategories = next;
+      for (const transaction of data.transactions) {
+        if (transaction.userId === user.id && transaction.subcategoryId === id) {
+          transaction.subcategoryId = undefined;
+        }
+      }
+      for (const rule of data.recurringPayments) {
+        if (rule.userId === user.id && rule.subcategoryId === id) {
+          rule.subcategoryId = undefined;
+        }
+      }
+      data.events.push({
+        id: randomUUID(),
+        userId: user.id,
+        name: "subcategory_deleted",
+        payload: { subcategoryId: id },
+        createdAt: now
+      });
+    });
+
+    if (!removed) {
+      reply.code(404).send({ error: "Subcategory not found" });
       return;
     }
 
@@ -440,6 +616,16 @@ export const buildServer = async (store: JsonStore) => {
       return;
     }
 
+    const subcategory = input.subcategoryId
+      ? db.subcategories.find(
+          (item) => item.id === input.subcategoryId && item.categoryId === input.categoryId && item.userId === user.id
+        )
+      : undefined;
+    if (input.subcategoryId && !subcategory) {
+      reply.code(422).send({ error: "Subcategory does not belong to the selected category" });
+      return;
+    }
+
     const now = new Date().toISOString();
     const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
     const transaction: Transaction = {
@@ -451,6 +637,7 @@ export const buildServer = async (store: JsonStore) => {
       originalAmount: money.originalAmount,
       exchangeRate: money.exchangeRate,
       categoryId: input.categoryId,
+      subcategoryId: input.subcategoryId,
       merchant: input.merchant,
       note: input.note,
       occurredAt: input.occurredAt ?? now,
@@ -495,6 +682,16 @@ export const buildServer = async (store: JsonStore) => {
       return;
     }
 
+    const subcategory = input.subcategoryId
+      ? db.subcategories.find(
+          (item) => item.id === input.subcategoryId && item.categoryId === input.categoryId && item.userId === user.id
+        )
+      : undefined;
+    if (input.subcategoryId && !subcategory) {
+      reply.code(422).send({ error: "Subcategory does not belong to the selected category" });
+      return;
+    }
+
     const id = (request.params as { id: string }).id;
     const money = normalizeMoney(input.amount, input.currency, input.exchangeRate);
     const now = new Date().toISOString();
@@ -512,6 +709,7 @@ export const buildServer = async (store: JsonStore) => {
       transaction.originalAmount = money.originalAmount;
       transaction.exchangeRate = money.exchangeRate;
       transaction.categoryId = input.categoryId;
+      transaction.subcategoryId = input.subcategoryId;
       transaction.merchant = input.merchant;
       transaction.note = input.note;
       transaction.occurredAt = input.occurredAt ?? transaction.occurredAt;
@@ -649,6 +847,16 @@ export const buildServer = async (store: JsonStore) => {
       return;
     }
 
+    const subcategory = input.subcategoryId
+      ? db.subcategories.find(
+          (item) => item.id === input.subcategoryId && item.categoryId === input.categoryId && item.userId === user.id
+        )
+      : undefined;
+    if (input.subcategoryId && !subcategory) {
+      reply.code(422).send({ error: "Subcategory does not belong to the selected category" });
+      return;
+    }
+
     if (input.intervalUnit === "month" && (!input.scheduleDay || input.scheduleDay < 1 || input.scheduleDay > 31)) {
       reply.code(422).send({ error: "Monthly recurring payments need a day from 1 to 31" });
       return;
@@ -677,6 +885,7 @@ export const buildServer = async (store: JsonStore) => {
       originalAmount: money.originalAmount,
       exchangeRate: money.exchangeRate,
       categoryId: input.categoryId,
+      subcategoryId: input.subcategoryId,
       merchant: input.merchant,
       note: input.note,
       intervalUnit: input.intervalUnit,
@@ -702,6 +911,7 @@ export const buildServer = async (store: JsonStore) => {
           originalAmount: money.originalAmount,
           exchangeRate: money.exchangeRate,
           categoryId: input.categoryId,
+          subcategoryId: input.subcategoryId,
           merchant: input.merchant,
           note: input.note,
           occurredAt: nowIso,

@@ -17,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
 import { useAppStore } from "../store/useAppStore";
 import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
-import type { Category, Currency, TransactionType } from "../types";
+import type { Category, Currency, Subcategory, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
 import { successFeedback } from "../utils/haptics";
 import { LBP_PER_USD, amountInputToNumber, amountToUsd, money } from "../utils/money";
@@ -38,6 +38,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   const queryClient = useQueryClient();
   const openCategoryModal = useAppStore((state) => state.openCategoryModal);
+  const openSubcategoryModal = useAppStore((state) => state.openSubcategoryModal);
   const editingTransaction = useAppStore((state) => state.editingTransaction);
   const preferredTransactionType = useAppStore((state) => state.preferredTransactionType);
   const [type, setType] = useState<TransactionType>("expense");
@@ -46,11 +47,16 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   const [merchant, setMerchant] = useState("");
   const [note, setNote] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [subcategoryId, setSubcategoryId] = useState<string | null>(null);
   const month = currentMonth();
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
     queryFn: api.categories
+  });
+  const subcategoriesQuery = useQuery({
+    queryKey: queryKeys.subcategories,
+    queryFn: api.subcategories
   });
 
   const categories = categoriesQuery.data?.categories ?? [];
@@ -68,11 +74,21 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
     () => categoriesByType[type],
     [categoriesByType, type]
   );
+  const filteredSubcategories = useMemo(
+    () => (subcategoriesQuery.data?.subcategories ?? []).filter((subcategory) => subcategory.categoryId === categoryId),
+    [categoryId, subcategoriesQuery.data?.subcategories]
+  );
   const isEditing = Boolean(editingTransaction);
 
   const changeType = (nextType: TransactionType) => {
     setType(nextType);
     setCategoryId(categoriesByType[nextType][0]?.id ?? null);
+    setSubcategoryId(null);
+  };
+
+  const changeCategory = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    setSubcategoryId(null);
   };
 
   useEffect(() => {
@@ -87,6 +103,16 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
   }, [categoryId, filteredCategories]);
 
   useEffect(() => {
+    if (!subcategoriesQuery.isSuccess || !subcategoryId) {
+      return;
+    }
+
+    if (!filteredSubcategories.some((subcategory) => subcategory.id === subcategoryId)) {
+      setSubcategoryId(null);
+    }
+  }, [filteredSubcategories, subcategoriesQuery.isSuccess, subcategoryId]);
+
+  useEffect(() => {
     if (!visible) {
       return;
     }
@@ -98,6 +124,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
       setMerchant(editingTransaction.merchant);
       setNote(editingTransaction.note ?? "");
       setCategoryId(editingTransaction.categoryId);
+      setSubcategoryId(editingTransaction.subcategoryId ?? null);
       trackEvent("edit_transaction_opened", { source: "transactions" });
       return;
     }
@@ -113,6 +140,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
     setMerchant("");
     setNote("");
     setCategoryId(null);
+    setSubcategoryId(null);
   };
 
   const mutation = useMutation({
@@ -163,6 +191,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
       currency,
       exchangeRate: currency === "LBP" ? LBP_PER_USD : undefined,
       categoryId,
+      subcategoryId: subcategoryId ?? undefined,
       merchant: merchant.trim(),
       note: note.trim() || undefined,
       occurredAt: editingTransaction?.occurredAt ?? new Date().toISOString()
@@ -266,7 +295,7 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
                   return (
                     <Pressable
                       key={category.id}
-                      onPress={() => setCategoryId(category.id)}
+                      onPress={() => changeCategory(category.id)}
                       style={[
                         styles.categoryChip,
                         selected && { borderColor: category.color, backgroundColor: `${category.color}16` }
@@ -283,6 +312,45 @@ export const AddTransactionModal = ({ visible, onClose }: AddTransactionModalPro
                 })}
               </ScrollView>
             )}
+
+            {categoryId ? (
+              <>
+                <Text style={styles.label}>Subcategory</Text>
+                {subcategoriesQuery.isLoading ? (
+                  <ActivityIndicator color={colors.primary} style={styles.loader} />
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
+                    <Pressable
+                      onPress={() => openSubcategoryModal(categoryId)}
+                      style={[styles.categoryChip, styles.addCategoryChip]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add subcategory"
+                    >
+                      <Ionicons name="add" size={16} color={colors.primary} />
+                      <Text style={[styles.categoryText, styles.addCategoryText]}>New</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setSubcategoryId(null)}
+                      style={[styles.categoryChip, !subcategoryId && styles.optionalChipSelected]}
+                    >
+                      <Text style={styles.categoryText}>None</Text>
+                    </Pressable>
+                    {filteredSubcategories.map((subcategory: Subcategory) => {
+                      const selected = subcategory.id === subcategoryId;
+                      return (
+                        <Pressable
+                          key={subcategory.id}
+                          onPress={() => setSubcategoryId(subcategory.id)}
+                          style={[styles.categoryChip, selected && styles.optionalChipSelected]}
+                        >
+                          <Text style={styles.categoryText}>{subcategory.name}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </>
+            ) : null}
 
             <Text style={styles.label}>Note</Text>
             <TextInput
@@ -481,6 +549,10 @@ const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
     gap: spacing.sm
   },
   addCategoryChip: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
+  },
+  optionalChipSelected: {
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft
   },

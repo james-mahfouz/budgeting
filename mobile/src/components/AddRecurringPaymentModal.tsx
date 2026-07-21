@@ -15,8 +15,9 @@ import {
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, queryKeys, trackEvent } from "../api/client";
+import { useAppStore } from "../store/useAppStore";
 import { radii, spacing, useAppTheme, type AppColors, type AppText } from "../theme";
-import type { Category, Currency, RecurringPayment, TransactionType } from "../types";
+import type { Category, Currency, RecurringPayment, Subcategory, TransactionType } from "../types";
 import { currentMonth } from "../utils/date";
 import { successFeedback } from "../utils/haptics";
 import { LBP_PER_USD, amountInputToNumber, amountToUsd, money } from "../utils/money";
@@ -42,6 +43,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
   const { colors, text } = useAppTheme();
   const styles = useMemo(() => createStyles(colors, text), [colors, text]);
   const queryClient = useQueryClient();
+  const openSubcategoryModal = useAppStore((state) => state.openSubcategoryModal);
   const month = currentMonth();
   const [type, setType] = useState<TransactionType>("expense");
   const [currency, setCurrency] = useState<Currency>("USD");
@@ -49,6 +51,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
   const [merchant, setMerchant] = useState("");
   const [note, setNote] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [subcategoryId, setSubcategoryId] = useState<string | null>(null);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("month");
   const [monthDay, setMonthDay] = useState(String(new Date().getDate()));
   const [weekDay, setWeekDay] = useState(new Date().getDay());
@@ -57,6 +60,10 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
     queryFn: api.categories
+  });
+  const subcategoriesQuery = useQuery({
+    queryKey: queryKeys.subcategories,
+    queryFn: api.subcategories
   });
 
   const filteredCategories = useMemo(
@@ -71,12 +78,22 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
       loan: categories.filter((category) => category.kind === "loan")
     };
   }, [categoriesQuery.data?.categories]);
+  const filteredSubcategories = useMemo(
+    () => (subcategoriesQuery.data?.subcategories ?? []).filter((subcategory) => subcategory.categoryId === categoryId),
+    [categoryId, subcategoriesQuery.data?.subcategories]
+  );
   const parsedAmount = amountInputToNumber(amount);
   const usdEstimate = amountToUsd(Number.isFinite(parsedAmount) ? parsedAmount : 0, currency, LBP_PER_USD);
 
   const changeType = (nextType: TransactionType) => {
     setType(nextType);
     setCategoryId(categoriesByType[nextType][0]?.id ?? null);
+    setSubcategoryId(null);
+  };
+
+  const changeCategory = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    setSubcategoryId(null);
   };
 
   useEffect(() => {
@@ -86,6 +103,16 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
     }
   }, [categoryId, filteredCategories]);
 
+  useEffect(() => {
+    if (!subcategoriesQuery.isSuccess || !subcategoryId) {
+      return;
+    }
+
+    if (!filteredSubcategories.some((subcategory) => subcategory.id === subcategoryId)) {
+      setSubcategoryId(null);
+    }
+  }, [filteredSubcategories, subcategoriesQuery.isSuccess, subcategoryId]);
+
   const reset = () => {
     setType("expense");
     setCurrency("USD");
@@ -93,6 +120,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
     setMerchant("");
     setNote("");
     setCategoryId(null);
+    setSubcategoryId(null);
     setRepeatMode("month");
     setMonthDay(String(new Date().getDate()));
     setWeekDay(new Date().getDay());
@@ -158,6 +186,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
       currency,
       exchangeRate: currency === "LBP" ? LBP_PER_USD : undefined,
       categoryId,
+      subcategoryId: subcategoryId ?? undefined,
       merchant: merchant.trim(),
       note: note.trim() || undefined,
       intervalUnit: repeatMode,
@@ -252,7 +281,7 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
                   return (
                     <Pressable
                       key={category.id}
-                      onPress={() => setCategoryId(category.id)}
+                      onPress={() => changeCategory(category.id)}
                       style={[
                         styles.categoryChip,
                         selected && { borderColor: category.color, backgroundColor: `${category.color}16` }
@@ -269,6 +298,45 @@ export const AddRecurringPaymentModal = ({ visible, onClose }: AddRecurringPayme
                 })}
               </ScrollView>
             )}
+
+            {categoryId ? (
+              <>
+                <Text style={styles.label}>Subcategory</Text>
+                {subcategoriesQuery.isLoading ? (
+                  <ActivityIndicator color={colors.primary} style={styles.loader} />
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
+                    <Pressable
+                      onPress={() => openSubcategoryModal(categoryId)}
+                      style={[styles.categoryChip, styles.addSubcategoryChip]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add subcategory"
+                    >
+                      <Ionicons name="add" size={16} color={colors.primary} />
+                      <Text style={[styles.categoryText, styles.addSubcategoryText]}>New</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setSubcategoryId(null)}
+                      style={[styles.categoryChip, !subcategoryId && styles.optionalChipSelected]}
+                    >
+                      <Text style={styles.categoryText}>None</Text>
+                    </Pressable>
+                    {filteredSubcategories.map((subcategory: Subcategory) => {
+                      const selected = subcategory.id === subcategoryId;
+                      return (
+                        <Pressable
+                          key={subcategory.id}
+                          onPress={() => setSubcategoryId(subcategory.id)}
+                          style={[styles.categoryChip, selected && styles.optionalChipSelected]}
+                        >
+                          <Text style={styles.categoryText}>{subcategory.name}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </>
+            ) : null}
 
             <Text style={styles.label}>Repeats</Text>
             <View style={styles.segment}>
@@ -524,6 +592,17 @@ const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   categoryText: {
     color: colors.ink,
     fontWeight: "800"
+  },
+  addSubcategoryChip: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
+  },
+  addSubcategoryText: {
+    color: colors.primaryDark
+  },
+  optionalChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
   },
   scheduleHint: {
     ...text.muted,

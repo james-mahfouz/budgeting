@@ -24,6 +24,7 @@ export const DashboardScreen = () => {
   const month = currentMonth();
 
   const categoriesQuery = useQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
+  const subcategoriesQuery = useQuery({ queryKey: queryKeys.subcategories, queryFn: api.subcategories });
   const summaryQuery = useQuery({ queryKey: queryKeys.summary(month), queryFn: () => api.summary(month) });
   const transactionsQuery = useQuery({ queryKey: queryKeys.transactions, queryFn: () => api.transactions(5) });
   const spendQuery = useQuery({ queryKey: queryKeys.categorySpend(month), queryFn: () => api.categorySpend(month) });
@@ -31,6 +32,10 @@ export const DashboardScreen = () => {
   const categoriesById = useMemo(() => {
     return new Map((categoriesQuery.data?.categories ?? []).map((category) => [category.id, category]));
   }, [categoriesQuery.data?.categories]);
+
+  const subcategoriesById = useMemo(() => {
+    return new Map((subcategoriesQuery.data?.subcategories ?? []).map((subcategory) => [subcategory.id, subcategory]));
+  }, [subcategoriesQuery.data?.subcategories]);
 
   const summary = summaryQuery.data?.summary;
   const spendingProgress = summary?.income ? Math.min((summary.expenses / summary.income) * 100, 100) : 0;
@@ -41,7 +46,8 @@ export const DashboardScreen = () => {
       summaryQuery.refetch(),
       transactionsQuery.refetch(),
       spendQuery.refetch(),
-      categoriesQuery.refetch()
+      categoriesQuery.refetch(),
+      subcategoriesQuery.refetch()
     ]);
   };
 
@@ -101,6 +107,7 @@ export const DashboardScreen = () => {
                 key={transaction.id}
                 transaction={transaction}
                 category={categoriesById.get(transaction.categoryId)}
+                subcategory={transaction.subcategoryId ? subcategoriesById.get(transaction.subcategoryId) : undefined}
               />
             ))
           ) : (

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AddCategoryModal } from "./src/components/AddCategoryModal";
 import { AddRecurringPaymentModal } from "./src/components/AddRecurringPaymentModal";
+import { AddSubcategoryModal } from "./src/components/AddSubcategoryModal";
 import { AddTransactionModal } from "./src/components/AddTransactionModal";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { BottomTabs } from "./src/navigation/BottomTabs";
@@ -35,11 +36,13 @@ const AppContent = () => {
   const user = useAppStore((state) => state.user);
   const isAddModalOpen = useAppStore((state) => state.isAddModalOpen);
   const isCategoryModalOpen = useAppStore((state) => state.isCategoryModalOpen);
+  const isSubcategoryModalOpen = useAppStore((state) => state.isSubcategoryModalOpen);
   const isRecurringModalOpen = useAppStore((state) => state.isRecurringModalOpen);
   const themePreference = useAppStore((state) => state.themePreference);
   const openAddModal = useAppStore((state) => state.openAddModal);
   const closeAddModal = useAppStore((state) => state.closeAddModal);
   const closeCategoryModal = useAppStore((state) => state.closeCategoryModal);
+  const closeSubcategoryModal = useAppStore((state) => state.closeSubcategoryModal);
   const closeRecurringModal = useAppStore((state) => state.closeRecurringModal);
   const setAuthReady = useAppStore((state) => state.setAuthReady);
   const signIn = useAppStore((state) => state.signIn);
@@ -138,6 +141,7 @@ const AppContent = () => {
     }
 
     void queryClient.prefetchQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
+    void queryClient.prefetchQuery({ queryKey: queryKeys.subcategories, queryFn: api.subcategories });
     trackEvent("app_open", { platform: "android-first" });
     const timer = setTimeout(() => openAddModal(), 350);
     return () => clearTimeout(timer);
@@ -169,6 +173,7 @@ const AppContent = () => {
       <AddTransactionModal visible={isAddModalOpen} onClose={closeAddModal} />
       <AddCategoryModal visible={isCategoryModalOpen} onClose={closeCategoryModal} />
       <AddRecurringPaymentModal visible={isRecurringModalOpen} onClose={closeRecurringModal} />
+      <AddSubcategoryModal visible={isSubcategoryModalOpen} onClose={closeSubcategoryModal} />
     </ThemeContext.Provider>
   );
 };

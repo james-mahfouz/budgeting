@@ -38,6 +38,10 @@ Android emulator uses `10.0.2.2` to reach your host machine. For a physical phon
 - `GET /api/auth/me`
 - `POST /api/auth/logout`
 - `GET /api/categories`
+- `GET /api/subcategories`
+- `POST /api/subcategories`
+- `PUT /api/subcategories/:id`
+- `DELETE /api/subcategories/:id`
 - `GET /api/transactions`
 - `POST /api/transactions`
 - `DELETE /api/transactions/:id`

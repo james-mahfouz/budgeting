@@ -12,7 +12,7 @@ import { Panel } from "../components/Panel";
 import { Screen } from "../components/Screen";
 import { useAppStore } from "../store/useAppStore";
 import { radii, spacing, themeLabels, useAppTheme, type AppColors, type AppText, type ThemePreference } from "../theme";
-import type { Category } from "../types";
+import type { Category, Subcategory } from "../types";
 import { currentMonth, readableDate } from "../utils/date";
 import { money } from "../utils/money";
 import { useScreenTracking } from "../utils/useScreenTracking";
@@ -38,6 +38,8 @@ export const SettingsScreen = () => {
   const openAddModal = useAppStore((state) => state.openAddModal);
   const openCategoryModal = useAppStore((state) => state.openCategoryModal);
   const openEditCategoryModal = useAppStore((state) => state.openEditCategoryModal);
+  const openSubcategoryModal = useAppStore((state) => state.openSubcategoryModal);
+  const openEditSubcategoryModal = useAppStore((state) => state.openEditSubcategoryModal);
   const openRecurringModal = useAppStore((state) => state.openRecurringModal);
   const user = useAppStore((state) => state.user);
   const signOut = useAppStore((state) => state.signOut);
@@ -50,11 +52,16 @@ export const SettingsScreen = () => {
     retry: 1
   });
   const categoriesQuery = useQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
+  const subcategoriesQuery = useQuery({ queryKey: queryKeys.subcategories, queryFn: api.subcategories });
   const recurringQuery = useQuery({ queryKey: queryKeys.recurringPayments, queryFn: api.recurringPayments });
 
   const categoriesById = useMemo(() => {
     return new Map((categoriesQuery.data?.categories ?? []).map((category) => [category.id, category]));
   }, [categoriesQuery.data?.categories]);
+
+  const subcategoriesById = useMemo(() => {
+    return new Map((subcategoriesQuery.data?.subcategories ?? []).map((subcategory) => [subcategory.id, subcategory]));
+  }, [subcategoriesQuery.data?.subcategories]);
 
   const deleteRecurringMutation = useMutation({
     mutationFn: api.deleteRecurringPayment,
@@ -73,6 +80,7 @@ export const SettingsScreen = () => {
       trackEvent("category_deleted_from_app");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.categories }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.subcategories }),
         queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments }),
         queryClient.invalidateQueries({ queryKey: queryKeys.summary(currentMonth()) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.categorySpend(currentMonth()) })
@@ -80,6 +88,21 @@ export const SettingsScreen = () => {
     },
     onError: (error) => {
       Alert.alert("Could not delete category", error instanceof Error ? error.message : "Try again.");
+    }
+  });
+
+  const deleteSubcategoryMutation = useMutation({
+    mutationFn: api.deleteSubcategory,
+    onSuccess: async () => {
+      trackEvent("subcategory_deleted_from_app");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.subcategories }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.recurringPayments })
+      ]);
+    },
+    onError: (error) => {
+      Alert.alert("Could not delete subcategory", error instanceof Error ? error.message : "Try again.");
     }
   });
 
@@ -104,9 +127,16 @@ export const SettingsScreen = () => {
   };
 
   const confirmDeleteCategory = (category: Category) => {
-    Alert.alert("Delete category?", `${category.name} will be removed from recurring payments. Existing transactions remain.`, [
+    Alert.alert("Delete category?", `${category.name} and its subcategories will be removed. Existing transactions remain.`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => deleteCategoryMutation.mutate(category.id) }
+    ]);
+  };
+
+  const confirmDeleteSubcategory = (subcategory: Subcategory) => {
+    Alert.alert("Delete subcategory?", `${subcategory.name} will be cleared from existing transactions and recurring payments.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteSubcategoryMutation.mutate(subcategory.id) }
     ]);
   };
 
@@ -159,35 +189,74 @@ export const SettingsScreen = () => {
 
         <Panel title="Categories">
           {(categoriesQuery.data?.categories ?? []).length ? (
-            categoriesQuery.data?.categories.map((category) => (
-              <View key={category.id} style={styles.categoryRow}>
-                <View style={[styles.categoryIcon, { backgroundColor: `${category.color}18` }]}>
-                  <Ionicons name={(category.icon as keyof typeof Ionicons.glyphMap) ?? "pricetag"} size={18} color={category.color} />
+            categoriesQuery.data?.categories.map((category) => {
+              const subcategories = (subcategoriesQuery.data?.subcategories ?? []).filter(
+                (subcategory) => subcategory.categoryId === category.id
+              );
+              return (
+                <View key={category.id} style={styles.categoryGroup}>
+                  <View style={styles.categoryRow}>
+                    <View style={[styles.categoryIcon, { backgroundColor: `${category.color}18` }]}>
+                      <Ionicons
+                        name={(category.icon as keyof typeof Ionicons.glyphMap) ?? "pricetag"}
+                        size={18}
+                        color={category.color}
+                      />
+                    </View>
+                    <View style={styles.categoryCopy}>
+                      <Text style={styles.categoryTitle} numberOfLines={1}>
+                        {category.name}
+                      </Text>
+                      <Text style={styles.categoryMeta}>
+                        {category.kind === "income" ? "Income" : category.kind === "loan" ? "Loan" : "Expense"}
+                        {` · ${subcategories.length} subcategor${subcategories.length === 1 ? "y" : "ies"}`}
+                      </Text>
+                    </View>
+                    <IconButton
+                      name="add-outline"
+                      label={`Add subcategory to ${category.name}`}
+                      onPress={() => openSubcategoryModal(category.id)}
+                      color={colors.primary}
+                      backgroundColor={colors.primarySoft}
+                    />
+                    <IconButton
+                      name="create-outline"
+                      label="Edit category"
+                      onPress={() => openEditCategoryModal(category)}
+                      color={colors.primary}
+                      backgroundColor={colors.primarySoft}
+                    />
+                    <IconButton
+                      name="trash-outline"
+                      label="Delete category"
+                      onPress={() => confirmDeleteCategory(category)}
+                      color={colors.danger}
+                      backgroundColor={colors.dangerSoft}
+                    />
+                  </View>
+                  {subcategories.map((subcategory) => (
+                    <View key={subcategory.id} style={styles.subcategoryRow}>
+                      <View style={[styles.subcategoryMarker, { backgroundColor: category.color }]} />
+                      <Text style={styles.subcategoryTitle} numberOfLines={1}>{subcategory.name}</Text>
+                      <IconButton
+                        name="create-outline"
+                        label="Edit subcategory"
+                        onPress={() => openEditSubcategoryModal(subcategory)}
+                        color={colors.primary}
+                        backgroundColor={colors.primarySoft}
+                      />
+                      <IconButton
+                        name="trash-outline"
+                        label="Delete subcategory"
+                        onPress={() => confirmDeleteSubcategory(subcategory)}
+                        color={colors.danger}
+                        backgroundColor={colors.dangerSoft}
+                      />
+                    </View>
+                  ))}
                 </View>
-                <View style={styles.categoryCopy}>
-                  <Text style={styles.categoryTitle} numberOfLines={1}>
-                    {category.name}
-                  </Text>
-                  <Text style={styles.categoryMeta}>
-                    {category.kind === "income" ? "Income" : category.kind === "loan" ? "Loan" : "Expense"}
-                  </Text>
-                </View>
-                <IconButton
-                  name="create-outline"
-                  label="Edit category"
-                  onPress={() => openEditCategoryModal(category)}
-                  color={colors.primary}
-                  backgroundColor={colors.primarySoft}
-                />
-                <IconButton
-                  name="trash-outline"
-                  label="Delete category"
-                  onPress={() => confirmDeleteCategory(category)}
-                  color={colors.danger}
-                  backgroundColor={colors.dangerSoft}
-                />
-              </View>
-            ))
+              );
+            })
           ) : (
             <EmptyState icon="pricetag" title="No categories" body="Create income, expense, and loan categories for your transactions." />
           )}
@@ -197,6 +266,7 @@ export const SettingsScreen = () => {
           {(recurringQuery.data?.recurringPayments ?? []).length ? (
             recurringQuery.data?.recurringPayments.map((rule) => {
               const category = categoriesById.get(rule.categoryId);
+              const subcategory = rule.subcategoryId ? subcategoriesById.get(rule.subcategoryId) : undefined;
               return (
                 <View key={rule.id} style={styles.recurringRow}>
                   <View style={[styles.recurringIcon, { backgroundColor: `${category?.color ?? colors.primary}18` }]}>
@@ -211,7 +281,8 @@ export const SettingsScreen = () => {
                       {rule.merchant}
                     </Text>
                     <Text style={styles.recurringMeta} numberOfLines={1}>
-                      {money(rule.amount)} {scheduleLabel(rule)} · next {readableDate(rule.nextRunAt)}
+                      {money(rule.amount)} · {category?.name ?? "Uncategorized"}
+                      {subcategory ? ` / ${subcategory.name}` : ""} · {scheduleLabel(rule)} · next {readableDate(rule.nextRunAt)}
                     </Text>
                   </View>
                   <IconButton
@@ -370,6 +441,9 @@ const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
     alignItems: "center",
     gap: spacing.md
   },
+  categoryGroup: {
+    gap: spacing.xs
+  },
   categoryIcon: {
     width: 42,
     height: 42,
@@ -388,5 +462,26 @@ const createStyles = (colors: AppColors, text: AppText) => StyleSheet.create({
   categoryMeta: {
     ...text.muted,
     marginTop: 2
+  },
+  subcategoryRow: {
+    minHeight: 52,
+    marginLeft: 21,
+    paddingLeft: spacing.lg,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm
+  },
+  subcategoryMarker: {
+    width: 7,
+    height: 7,
+    borderRadius: 4
+  },
+  subcategoryTitle: {
+    ...text.body,
+    flex: 1,
+    minWidth: 0,
+    fontWeight: "800"
   }
 });

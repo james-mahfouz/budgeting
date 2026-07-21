@@ -28,11 +28,16 @@ export const LoansScreen = () => {
   const openEditTransactionModal = useAppStore((state) => state.openEditTransactionModal);
 
   const categoriesQuery = useQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
+  const subcategoriesQuery = useQuery({ queryKey: queryKeys.subcategories, queryFn: api.subcategories });
   const transactionsQuery = useQuery({ queryKey: queryKeys.transactions, queryFn: () => api.transactions(200) });
 
   const categoriesById = useMemo(() => {
     return new Map((categoriesQuery.data?.categories ?? []).map((category) => [category.id, category]));
   }, [categoriesQuery.data?.categories]);
+
+  const subcategoriesById = useMemo(() => {
+    return new Map((subcategoriesQuery.data?.subcategories ?? []).map((subcategory) => [subcategory.id, subcategory]));
+  }, [subcategoriesQuery.data?.subcategories]);
 
   const loans = useMemo(
     () => (transactionsQuery.data?.transactions ?? []).filter((transaction) => transaction.type === "loan"),
@@ -83,7 +88,7 @@ export const LoansScreen = () => {
   });
 
   const refresh = () => {
-    void Promise.all([transactionsQuery.refetch(), categoriesQuery.refetch()]);
+    void Promise.all([transactionsQuery.refetch(), categoriesQuery.refetch(), subcategoriesQuery.refetch()]);
   };
 
   const confirmDelete = (loan: Transaction) => {
@@ -98,6 +103,7 @@ export const LoansScreen = () => {
       key={loan.id}
       transaction={loan}
       category={categoriesById.get(loan.categoryId)}
+      subcategory={loan.subcategoryId ? subcategoriesById.get(loan.subcategoryId) : undefined}
       onPress={() => openEditTransactionModal(loan)}
       trailing={
         <View style={styles.rowActions}>
@@ -131,7 +137,7 @@ export const LoansScreen = () => {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            refreshing={transactionsQuery.isRefetching || categoriesQuery.isRefetching}
+            refreshing={transactionsQuery.isRefetching || categoriesQuery.isRefetching || subcategoriesQuery.isRefetching}
             onRefresh={refresh}
           />
         }

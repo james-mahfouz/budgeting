@@ -34,11 +34,16 @@ export const TransactionsScreen = () => {
   const month = currentMonth();
 
   const categoriesQuery = useQuery({ queryKey: queryKeys.categories, queryFn: api.categories });
+  const subcategoriesQuery = useQuery({ queryKey: queryKeys.subcategories, queryFn: api.subcategories });
   const transactionsQuery = useQuery({ queryKey: queryKeys.transactions, queryFn: () => api.transactions(100) });
 
   const categoriesById = useMemo(() => {
     return new Map((categoriesQuery.data?.categories ?? []).map((category) => [category.id, category]));
   }, [categoriesQuery.data?.categories]);
+
+  const subcategoriesById = useMemo(() => {
+    return new Map((subcategoriesQuery.data?.subcategories ?? []).map((subcategory) => [subcategory.id, subcategory]));
+  }, [subcategoriesQuery.data?.subcategories]);
 
   const transactions = useMemo(() => {
     const items = transactionsQuery.data?.transactions ?? [];
@@ -69,7 +74,7 @@ export const TransactionsScreen = () => {
   };
 
   const refresh = () => {
-    void Promise.all([transactionsQuery.refetch(), categoriesQuery.refetch()]);
+    void Promise.all([transactionsQuery.refetch(), categoriesQuery.refetch(), subcategoriesQuery.refetch()]);
   };
 
   return (
@@ -97,7 +102,7 @@ export const TransactionsScreen = () => {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            refreshing={transactionsQuery.isRefetching || categoriesQuery.isRefetching}
+            refreshing={transactionsQuery.isRefetching || categoriesQuery.isRefetching || subcategoriesQuery.isRefetching}
             onRefresh={refresh}
           />
         }
@@ -109,6 +114,7 @@ export const TransactionsScreen = () => {
                 key={transaction.id}
                 transaction={transaction}
                 category={categoriesById.get(transaction.categoryId)}
+                subcategory={transaction.subcategoryId ? subcategoriesById.get(transaction.subcategoryId) : undefined}
                 onPress={() => openEditTransactionModal(transaction)}
                 trailing={
                   <View style={styles.rowActions}>

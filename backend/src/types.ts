@@ -30,6 +30,13 @@ export type Category = {
   icon: string;
 };
 
+export type Subcategory = {
+  id: string;
+  userId: string;
+  categoryId: string;
+  name: string;
+};
+
 export type Transaction = {
   id: string;
   userId: string;
@@ -39,6 +46,7 @@ export type Transaction = {
   originalAmount?: number;
   exchangeRate?: number;
   categoryId: string;
+  subcategoryId?: string;
   merchant: string;
   note?: string;
   repaidAt?: string;
@@ -55,6 +63,7 @@ export type RecurringPayment = {
   originalAmount?: number;
   exchangeRate?: number;
   categoryId: string;
+  subcategoryId?: string;
   merchant: string;
   note?: string;
   intervalUnit: RecurringIntervalUnit;
@@ -79,6 +88,7 @@ export type DbData = {
   users: User[];
   sessions: AuthSession[];
   categories: Category[];
+  subcategories: Subcategory[];
   transactions: Transaction[];
   recurringPayments: RecurringPayment[];
   events: AnalyticsEvent[];

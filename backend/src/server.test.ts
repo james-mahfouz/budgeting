@@ -120,6 +120,86 @@ describe("auth protected API", () => {
     await app.close();
   });
 
+  it("creates, updates, selects, and deletes category-scoped subcategories", async () => {
+    const app = await createApp();
+    const register = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: { name: "James", username: "james-subcategories@example.com", password: "password123" }
+    });
+    const auth = register.json<{ token: string }>();
+    const headers = { authorization: `Bearer ${auth.token}` };
+
+    const categoriesResponse = await app.inject({ method: "GET", url: "/api/categories", headers });
+    const expenseCategories = categoriesResponse
+      .json<{ categories: Array<{ id: string; kind: string }> }>()
+      .categories.filter((item) => item.kind === "expense");
+    expect(expenseCategories.length).toBeGreaterThan(1);
+
+    const createdResponse = await app.inject({
+      method: "POST",
+      url: "/api/subcategories",
+      headers,
+      payload: { categoryId: expenseCategories[0].id, name: "Weekly shop" }
+    });
+    expect(createdResponse.statusCode).toBe(201);
+    const created = createdResponse.json<{ subcategory: { id: string; categoryId: string; name: string } }>().subcategory;
+    expect(created).toMatchObject({ categoryId: expenseCategories[0].id, name: "Weekly shop" });
+
+    const listed = await app.inject({ method: "GET", url: "/api/subcategories", headers });
+    expect(listed.json<{ subcategories: Array<{ id: string }> }>().subcategories).toContainEqual(
+      expect.objectContaining({ id: created.id })
+    );
+
+    const updated = await app.inject({
+      method: "PUT",
+      url: `/api/subcategories/${created.id}`,
+      headers,
+      payload: { categoryId: expenseCategories[0].id, name: "Supermarket" }
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json<{ subcategory: { name: string } }>().subcategory.name).toBe("Supermarket");
+
+    const transactionResponse = await app.inject({
+      method: "POST",
+      url: "/api/transactions",
+      headers,
+      payload: {
+        type: "expense",
+        amount: 30,
+        categoryId: expenseCategories[0].id,
+        subcategoryId: created.id,
+        merchant: "Market"
+      }
+    });
+    expect(transactionResponse.statusCode).toBe(201);
+    expect(transactionResponse.json<{ transaction: { subcategoryId: string } }>().transaction.subcategoryId).toBe(created.id);
+
+    const mismatchedTransaction = await app.inject({
+      method: "POST",
+      url: "/api/transactions",
+      headers,
+      payload: {
+        type: "expense",
+        amount: 10,
+        categoryId: expenseCategories[1].id,
+        subcategoryId: created.id,
+        merchant: "Wrong category"
+      }
+    });
+    expect(mismatchedTransaction.statusCode).toBe(422);
+
+    const removed = await app.inject({ method: "DELETE", url: `/api/subcategories/${created.id}`, headers });
+    expect(removed.statusCode).toBe(204);
+
+    const transactions = await app.inject({ method: "GET", url: "/api/transactions", headers });
+    expect(
+      transactions.json<{ transactions: Array<{ merchant: string; subcategoryId?: string }> }>().transactions
+        .find((transaction) => transaction.merchant === "Market")
+    ).not.toHaveProperty("subcategoryId");
+    await app.close();
+  });
+
   it("updates a user's transaction", async () => {
     const app = await createApp();
     const register = await app.inject({

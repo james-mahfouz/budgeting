@@ -74,6 +74,7 @@ const createTransactionFromRule = (rule: RecurringPayment, occurredAt: string): 
   originalAmount: rule.originalAmount,
   exchangeRate: rule.exchangeRate,
   categoryId: rule.categoryId,
+  subcategoryId: rule.subcategoryId,
   merchant: rule.merchant,
   note: rule.note,
   occurredAt,

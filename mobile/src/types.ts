@@ -22,6 +22,13 @@ export type Category = {
   icon: string;
 };
 
+export type Subcategory = {
+  id: string;
+  userId: string;
+  categoryId: string;
+  name: string;
+};
+
 export type Transaction = {
   id: string;
   userId: string;
@@ -31,6 +38,7 @@ export type Transaction = {
   originalAmount?: number;
   exchangeRate?: number;
   categoryId: string;
+  subcategoryId?: string;
   merchant: string;
   note?: string;
   repaidAt?: string;
@@ -47,6 +55,7 @@ export type RecurringPayment = {
   originalAmount?: number;
   exchangeRate?: number;
   categoryId: string;
+  subcategoryId?: string;
   merchant: string;
   note?: string;
   intervalUnit: RecurringIntervalUnit;
@@ -93,6 +102,7 @@ export type CreateTransactionInput = {
   currency?: Currency;
   exchangeRate?: number;
   categoryId: string;
+  subcategoryId?: string;
   merchant: string;
   note?: string;
   occurredAt?: string;
@@ -109,12 +119,20 @@ export type CreateCategoryInput = {
 
 export type UpdateCategoryInput = CreateCategoryInput;
 
+export type CreateSubcategoryInput = {
+  categoryId: string;
+  name: string;
+};
+
+export type UpdateSubcategoryInput = CreateSubcategoryInput;
+
 export type CreateRecurringPaymentInput = {
   type: TransactionType;
   amount: number;
   currency?: Currency;
   exchangeRate?: number;
   categoryId: string;
+  subcategoryId?: string;
   merchant: string;
   note?: string;
   intervalUnit: RecurringIntervalUnit;
